@@ -11,6 +11,8 @@ from sklearn.exceptions import NotFittedError
 
 from mltoolbox.anomaly_detection.exceptions import ModelFittingFailure
 
+logger = logging.getLogger(__name__)
+
 
 class GaussianAnomalyQuantifier(object):
     """Wrapper class for Gaussian modelling of data distribution."""
@@ -33,26 +35,28 @@ class GaussianAnomalyQuantifier(object):
                         scores = self.pca_model.project_data(df)
 
                     # Find the n_pcomponents which explain the variance
-                    cum_variance = \
-                        self.pca_model.model.explained_variance_ratio_ \
-                            .cumsum() * 100
+                    cum_variance = (
+                        self.pca_model.model.explained_variance_ratio_.cumsum() * 100
+                    )
                     try:
-                        component_idx = \
-                            np.where(cum_variance >= self.var_explained)[0][0]
+                        component_idx = np.where(cum_variance >= self.var_explained)[0][
+                            0
+                        ]
                     except IndexError:
                         logging.info(
-                            '%d variance not reached with available '
-                            'components, consider setting PCA n_components > %d' %
-                            (self.var_explained, self.pca_model.n_components))
+                            "%d variance not reached with available "
+                            "components, consider setting PCA n_components > %d"
+                            % (self.var_explained, self.pca_model.n_components)
+                        )
                         # We take all components
                         component_idx = len(cum_variance) - 1
 
                     self.var_retained_ = cum_variance[component_idx]
                     self.n_pcomponents_ = component_idx + 1
 
-                    return fit_model_function(self, scores.iloc[:,
-                                                    :self.n_pcomponents_],
-                                              *args, **kwargs)
+                    return fit_model_function(
+                        self, scores.iloc[:, : self.n_pcomponents_], *args, **kwargs
+                    )
                 else:
                     return fit_model_function(self, df, *args, **kwargs)
 
@@ -67,9 +71,9 @@ class GaussianAnomalyQuantifier(object):
                     # Transform in PCs
                     scores = self.pca_model.project_data(df)
 
-                    return project_model_function(self, scores.iloc[:,
-                                                        :self.n_pcomponents_],
-                                                  *args, **kwargs)
+                    return project_model_function(
+                        self, scores.iloc[:, : self.n_pcomponents_], *args, **kwargs
+                    )
                 else:
                     return project_model_function(self, df, *args, **kwargs)
 
@@ -79,9 +83,16 @@ class GaussianAnomalyQuantifier(object):
     def n_components(self):
         return self.distribution_model.n_components
 
-    def __init__(self, pca_model=None, var_explained=80, n_components=1,
-                 covariance_type='full', init_params='kmeans', n_init=1,
-                 **kwargs):
+    def __init__(
+        self,
+        pca_model=None,
+        var_explained=80,
+        n_components=1,
+        covariance_type="full",
+        init_params="kmeans",
+        n_init=1,
+        **kwargs,
+    ):
         """Initializes the anomaly detector object."""
         self.pca_model = pca_model
         if self.pca_model is not None:
@@ -94,11 +105,13 @@ class GaussianAnomalyQuantifier(object):
         self.n_pcomponents_ = None
 
         # Initialize mixture model
-        self.distribution_model = GaussianMixture(n_components=n_components,
-                                                  covariance_type=covariance_type,
-                                                  init_params=init_params,
-                                                  n_init=n_init,
-                                                  **kwargs)
+        self.distribution_model = GaussianMixture(
+            n_components=n_components,
+            covariance_type=covariance_type,
+            init_params=init_params,
+            n_init=n_init,
+            **kwargs,
+        )
 
     @Decorators._fit_pca
     def fit(self, data_matrix):
@@ -115,8 +128,9 @@ class GaussianAnomalyQuantifier(object):
 
         log_probability = self.distribution_model.score_samples(data_matrix)
 
-        return pd.Series(log_probability, index=data_matrix.index,
-                         name='log_probability')
+        return pd.Series(
+            log_probability, index=data_matrix.index, name="log_probability"
+        )
 
     @Decorators._apply_pca
     def compute_bic(self, data_matrix):
@@ -136,8 +150,9 @@ class GaussianAnomalyQuantifier(object):
         """Get the most likely gaussian the data belongs to."""
         predicted_components = self.distribution_model.predict(data_matrix)
 
-        return pd.Series(predicted_components, index=data_matrix.index,
-                         name='mixture_component')
+        return pd.Series(
+            predicted_components, index=data_matrix.index, name="mixture_component"
+        )
 
     def get_anomalies(self, data_matrix, threshold):
         """Returns anomalies"""
@@ -151,8 +166,13 @@ class HyperparameterTuner(object):
     """Wrapper class for hyperparameter tuning of GaussianAnomalyQuantifier
     model."""
 
-    def __init__(self, pca_model=None, var_explained=80, max_n_components=10,
-                 cv_types=['spherical', 'tied', 'diag', 'full']):
+    def __init__(
+        self,
+        pca_model=None,
+        var_explained=80,
+        max_n_components=10,
+        cv_types=["spherical", "tied", "diag", "full"],
+    ):
         """Initializes the tuner."""
         self.pca_model = pca_model
         self.var_explained = var_explained
@@ -179,24 +199,34 @@ class HyperparameterTuner(object):
 
         # Parse arguments
         if n_components is None:
-            n_components_array = np.arange(1, min(self.max_n_components,
-                                                  data_matrix.shape[0]) + 1)
+            n_components_array = np.arange(
+                1, min(self.max_n_components, data_matrix.shape[0]) + 1
+            )
         else:
             n_components_array = [n_components]
+
+        logger.info(
+            f"Finding the best parameters in the {self.cv_types} x {n_components_array} components grid"
+        )
 
         # Loop
         for cv_type in self.cv_types:
             # Loop through component configuration
             for n in n_components_array:
                 # Fit a Gaussian mixture with EM
+                logger.debug(
+                    f"Fitting model with {n} components and {cv_type} covariance matrix"
+                )
                 try:
                     model = GaussianAnomalyQuantifier(
                         pca_model=self.pca_model,
                         var_explained=self.var_explained,
                         n_components=n,
-                        covariance_type=cv_type).fit(data_matrix)
-                except ValueError:
+                        covariance_type=cv_type,
+                    ).fit(data_matrix)
+                except ValueError as exc:
                     # Fitting failed for some reasons, so we continue to loop
+                    logger.info(exc)
                     continue
                 except Exception:
                     raise
@@ -208,7 +238,10 @@ class HyperparameterTuner(object):
                     best_model = model
 
         # Check that we manage to fit at least one model
-        if len(bic) > 0:
-            raise ModelFittingFailure('Impossible to fit a model')
+        if len(bic) == 0:
+            raise ModelFittingFailure("Impossible to fit a model")
 
-        return best_model.distribution_model.n_components, best_model.distribution_model.covariance_type
+        return (
+            best_model.distribution_model.n_components,
+            best_model.distribution_model.covariance_type,
+        )
