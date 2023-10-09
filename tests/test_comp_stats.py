@@ -1,17 +1,17 @@
 import numpy as np
 import pytest
 
-from mltoolbox.comp_stats import bootstrap_mean_ci, bootstrap_corr_pval
+from mltoolbox.comp_stats import bootstrap_corr_pval, bootstrap_mean_ci
+
 
 class TestBoostrapMeanCI:
-
     def test_valid_input(self):
         data = [1, 2, 3, 4, 5]
         ci = bootstrap_mean_ci(data, n_boot=100, ci=0.9)
         assert ci.shape == (2,)
 
     def test_invalid_input(self):
-        data = [1, 2, 'a', 4, 5]
+        data = [1, 2, "a", 4, 5]
         with pytest.raises(TypeError):
             bootstrap_mean_ci(data, n_boot=100, ci=0.9)
 
@@ -27,7 +27,6 @@ class TestBoostrapMeanCI:
 
 
 class TestBoostrapCorrPval:
-
     def test_correlation(self):
         data_series1 = [1, 2, 3, 4, 5]
         data_series2 = [1, 2, 3, 4, 5]

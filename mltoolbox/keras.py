@@ -1,17 +1,13 @@
 # type: ignore
 
 import logging
-from typing import List, Sequence
+from collections.abc import Sequence
 
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
+from sklearn.metrics import f1_score, precision_score, recall_score
 from tensorflow import keras
-from sklearn.metrics import (
-    f1_score,
-    precision_score,
-    recall_score,
-)
 from tensorflow.keras import backend as K
 from tensorflow.keras.utils import to_categorical
 
@@ -21,15 +17,13 @@ logger = logging.getLogger(__name__)
 def to_keras_categorical(categorical_array: Sequence) -> np.ndarray:
     """Converts a possibly discontinuous categorical array into a One-hot-encoded matrix."""
     unique_values = np.unique(categorical_array)
-    mapping = dict(zip(unique_values, range(len(unique_values))))
+    mapping = dict(zip(unique_values, range(len(unique_values)), strict=True))
     integer_array = np.array([mapping[i] for i in categorical_array])
 
     return to_categorical(integer_array)
 
 
-def plot_loss(
-    model_trained, performance_metrics: List[str] | None
-) -> plt.Figure:
+def plot_loss(model_trained, performance_metrics: list[str] | None) -> plt.Figure:
     """Plots the training and validation loss as well as optional performance metrics."""
 
     loss = model_trained.history["loss"]
@@ -62,10 +56,7 @@ def plot_loss(
 class SGDLearningRateTracker(keras.callbacks.Callback):
     def on_epoch_end(self, epoch, logs=None) -> None:
         optimizer = self.model.optimizer
-        lr = K.eval(
-            optimizer.lr
-            * (1.0 / (1.0 + optimizer.decay * optimizer.iterations))
-        )
+        lr = K.eval(optimizer.lr * (1.0 / (1.0 + optimizer.decay * optimizer.iterations)))
         logger.info(f"\nLR: {lr:.6f}\n")
 
 
@@ -80,9 +71,7 @@ class GradientNorm(keras.callbacks.Callback):
             y_pred = self.model.predict(self.validation_data[0])
             loss = loss_fct(y_pred, self.validation_data[0])
         grads = tape.gradient(loss, self.model.trainable_weights)
-        self.gradient_norm.append(
-            K.sqrt(sum([K.sum(K.square(g)) for g in grads]))
-        )
+        self.gradient_norm.append(K.sqrt(sum([K.sum(K.square(g)) for g in grads])))
 
 
 # Keras callback to store losses and lr at the end of each epoch
@@ -110,9 +99,7 @@ class Metrics(keras.callbacks.Callback):
         self.val_precisions = []
 
     def on_epoch_end(self, epoch, logs=None) -> None:
-        val_predict = (
-            np.asarray(self.model.predict(self.validation_data[0]))
-        ).round()
+        val_predict = (np.asarray(self.model.predict(self.validation_data[0]))).round()
         val_targ = self.validation_data[1]
         _val_f1 = f1_score(val_targ, val_predict)
         _val_recall = recall_score(val_targ, val_predict)
@@ -121,5 +108,6 @@ class Metrics(keras.callbacks.Callback):
         self.val_recalls.append(_val_recall)
         self.val_precisions.append(_val_precision)
         logger.info(
-            f"\n— val_f1: {_val_f1:.2f} — val_precision: {_val_precision:.2f} — val_recall {_val_recall:.2f}"
+            f"\n— val_f1: {_val_f1:.2f} — val_precision: {_val_precision:.2f} — val_recall"
+            f" {_val_recall:.2f}"
         )

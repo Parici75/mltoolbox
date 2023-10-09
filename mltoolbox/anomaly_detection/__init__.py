@@ -1,15 +1,8 @@
-"""Anomaly detection Subpackage
+"""Anomaly detection and quantification using Gaussian mixture modelling."""
 
-A collection of functions for anomaly quantification.
+from mltoolbox.anomaly_detection._anomaly_detection import (
+    GaussianAnomalyQuantifier,
+    HyperparameterTuner,
+)
 
-
-This package is organized as follows:
-
-Modules:
-
-- anomaly_detection: All the basic classes and functions for data processing
-- exceptions: Our custom exceptions
-
-"""
-
-from .anomaly_detection import GaussianAnomalyQuantifier, HyperparameterTuner
+__all__ = ["GaussianAnomalyQuantifier", "HyperparameterTuner"]

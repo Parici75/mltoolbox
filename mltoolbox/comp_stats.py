@@ -1,14 +1,18 @@
 """"Computational statistics utilities."""
-import logging
-from numpy.typing import ArrayLike
-import numpy as np
-from scipy.cluster.hierarchy import dendrogram
 
+import logging
+from typing import Any
+
+import matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+from numpy.typing import ArrayLike, NDArray
+from scipy.cluster.hierarchy import dendrogram
 
 logger = logging.getLogger(__name__)
 
-def bootstrap_mean_ci(data: ArrayLike, n_boot: int = 1000, ci: float = 0.95
-                      ) -> np.ndarray | None:
+
+def bootstrap_mean_ci(data: ArrayLike, n_boot: int = 1000, ci: float = 0.95) -> NDArray[Any] | None:
     """Estimates confidence interval of the mean by bootstrap resampling."""
     low_end = (1 - ci) / 2
     high_end = 1 - low_end
@@ -16,12 +20,10 @@ def bootstrap_mean_ci(data: ArrayLike, n_boot: int = 1000, ci: float = 0.95
     # To numpy array
     data_array = np.asarray(data)
     if data_array.ndim == 0:
-        raise ValueError(f"Can not calculate CI for a scalar input")
+        raise ValueError("Can not calculate CI for a scalar input")
 
     # Bootstrap mean
-    boot_sample = np.random.choice(
-        data_array[~np.isnan(data_array)], (data_array.size, n_boot)
-    )
+    boot_sample = np.random.choice(data_array[~np.isnan(data_array)], (data_array.size, n_boot))
     boot_sample_mean = boot_sample.mean(axis=0)
 
     return np.quantile(boot_sample_mean, [low_end, high_end])
@@ -32,7 +34,8 @@ def bootstrap_corr_pval(
     data_array2: ArrayLike,
     n_boot: int = 1000,
 ) -> float:
-    """Estimates p-value of a correlation between two data series by random permutations of the second series."""
+    """Estimates p-value of a correlation between two data series by random permutations
+    of the second series."""
 
     # To numpy arrays
     x1 = np.asarray(data_array1)
@@ -41,13 +44,9 @@ def bootstrap_corr_pval(
     pcc = np.corrcoef(x1, x2)[0, 1]
 
     # Bootstrap samples of permuted arrays
-    boot_sample = np.array(
-        [np.random.permutation(x2) for _ in np.arange(n_boot)]
-    ).transpose()
+    boot_sample = np.array([np.random.permutation(x2) for _ in np.arange(n_boot)]).transpose()
     # Cross-correlation between array and bootstraps
-    cross_corr = np.corrcoef(
-        np.concatenate((x1.reshape((-1, 1)), boot_sample), axis=1).transpose()
-    )
+    cross_corr = np.corrcoef(np.concatenate((x1.reshape((-1, 1)), boot_sample), axis=1).transpose())
     # 1st column of the matrix gives us the bootstrap correlation values
     boot_sample_corr = cross_corr[0, 1:]
 
@@ -57,13 +56,13 @@ def bootstrap_corr_pval(
     return np.sum(boot_sample_corr < pcc) / n_boot
 
 
-def linalg_norm(vector: np.ndarray, matrix: np.ndarray) -> np.ndarray:
+def linalg_norm(vector: NDArray[Any], matrix: NDArray[Any]) -> NDArray[Any]:
     """Computes pairwise euclidian distance between a vector and each row of a matrix."""
 
     return np.linalg.norm(vector - matrix, axis=1)
 
 
-def fancy_dendrogram(*args, **kwargs):
+def fancy_dendrogram(*args: Any, **kwargs: Any) -> matplotlib.figure.Figure:
     """Plots a pretty dendrogram.
 
     From https://joernhees.de/blog/2015/08/26/scipy-hierarchical-clustering
@@ -86,9 +85,7 @@ def fancy_dendrogram(*args, **kwargs):
             plt.title("Hierarchical Clustering Dendrogram")
         plt.xlabel(xlabel)
         plt.ylabel("Distance")
-        for i, d, c in zip(
-            ddata["icoord"], ddata["dcoord"], ddata["color_list"]
-        ):
+        for i, d, c in zip(ddata["icoord"], ddata["dcoord"], ddata["color_list"], strict=True):
             x = 0.5 * sum(i[1:3])
             y = d[1]
             if y > annotate_above:

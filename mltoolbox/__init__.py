@@ -1,7 +1,7 @@
 """
 MLToolbox
 
-A collection of methods for common ML/computational statistics/time-series analysis.
+A collection of methods for ML / computational statistics / time-series analysis.
 
 
 This package is organized as follows:
@@ -12,7 +12,7 @@ Subpackages:
     A framework for multivariate Gaussian anomaly detection.
 
 - latent_space
-    A framework for exploratory data analysis of multidimensional datasets.
+    A framework for exploratory data analysis of multivariate datasets.
 
 
 Modules:
@@ -30,9 +30,10 @@ Modules:
     Common methods for time-series statistics.
 
 - training
-    General purpose functions for machine learning model training paradigms.
+    Tools for machine learning model training paradigms.
 
 """
+
 
 __all__ = [
     "comp_stats",
@@ -41,4 +42,3 @@ __all__ = [
     "time_series",
     "training",
 ]
-

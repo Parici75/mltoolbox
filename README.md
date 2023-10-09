@@ -1,6 +1,6 @@
-# MLToolbox
+# [MLToolbox](https://github.com/parici75/mltoolbox)
 
-A collection of methods for common ML/computational statistics/time-series analysis.
+A collection of methods for common Machine learning / computational statistics / time-series analysis.
 
 
 Installation:

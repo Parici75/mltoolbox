@@ -1,30 +1,33 @@
-"""Tools for common ML analyses."""
+"""Tools for Machine Learning training paradigms."""
 
 import itertools
 import logging
-from typing import Any, Dict, Sequence, Tuple, Generator
+from collections.abc import Generator
+from enum import Enum
+from typing import Any, Self
 
 import matplotlib.pyplot
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import sklearn
 import sklearn.base
 from imblearn.over_sampling import SMOTE
+from numpy.typing import ArrayLike, NDArray
 from pymodules.matplotlib_utils import remove_spines
 from pymodules.misc_utils import invert_mapping
 from pymodules.numpy_utils import find_nearest
-from pymodules.pandas_utils import get_pd_name
 from scipy.stats import linregress
 from sklearn.metrics import (
     accuracy_score,
-    roc_curve,
     auc,
-    precision_recall_curve,
-    f1_score,
     average_precision_score,
     classification_report,
     confusion_matrix,
+    f1_score,
+    precision_recall_curve,
     r2_score,
+    roc_curve,
 )
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
@@ -33,10 +36,9 @@ from sklearn.utils.multiclass import unique_labels
 logger = logging.getLogger(__name__)
 
 
-
 def leave_one_identifier_out_cv(
     data_df: pd.DataFrame, identifier: str, identifier_isolation: bool = False
-) -> Generator[Tuple[Sequence, Sequence], None, None]:
+) -> Generator[tuple[NDArray[Any], NDArray[Any]], None, None]:
     """A generic cross-validation utility for generation of flexible
     leave-one-identifier-out cross-validation folds.
 
@@ -52,7 +54,8 @@ def leave_one_identifier_out_cv(
         identifier:
             A string specifying the index level along which to perform the leave-one-out paradigm.
         identifier_isolation:
-            If True, ensure that none of the identifier levels present in the validation fold are used in the training set.
+            If True, ensure that none of the identifier levels present in the validation fold are
+            used in the training set.
 
     Yields:
         train and tests indices for each split
@@ -65,15 +68,13 @@ def leave_one_identifier_out_cv(
     # Check the identifier exists
     if identifier not in cv_df.index.names:
         if len(id_bits) > 1:
-            levels = [
-                cv_df.index.get_level_values(id_bit) for id_bit in id_bits
-            ]
-            cv_df[identifier] = ["+".join(id_bits) for id_bits in zip(*levels)]
+            levels = [cv_df.index.get_level_values(id_bit) for id_bit in id_bits]
+            cv_df[identifier] = ["+".join(id_bits) for id_bits in zip(*levels, strict=True)]
             cv_df = cv_df.set_index(identifier, append=True)
         else:
             raise ValueError(
                 f"The identifier {identifier} could not be found. To specify "
-                f"a composite identifier, use the + character"
+                "a composite identifier, use the + character"
             )
 
     # Fold generation loop
@@ -82,42 +83,27 @@ def leave_one_identifier_out_cv(
 
         if identifier_isolation:
             training_fold = [
-                [
-                    fold
-                    for fold in cv_df.index.unique(id_bit)
-                    if fold != validation_fold_bit
-                ]
-                for id_bit, validation_fold_bit in zip(
-                    id_bits, validation_fold_bits
-                )
+                [fold for fold in cv_df.index.unique(id_bit) if fold != validation_fold_bit]
+                for id_bit, validation_fold_bit in zip(id_bits, validation_fold_bits, strict=True)
             ]
         else:
             training_fold = [
-                [
-                    fold
-                    for fold in cv_df.index.unique(identifier)
-                    if fold != validation_fold
-                ]
+                [fold for fold in cv_df.index.unique(identifier) if fold != validation_fold]
             ]
 
         # Get the training boolean array
         training_boolean = np.array(
             [
                 [label in training_fold_id for label in cv_df.index.get_level_values(id_bit)]
-                for id_bit, training_fold_id in zip(id_bits, training_fold)
+                for id_bit, training_fold_id in zip(id_bits, training_fold, strict=True)
             ]
         ).all(axis=0)
         # Get the testing boolean array
-        testing_boolean = (
-            cv_df.index.get_level_values(identifier) == validation_fold
-        )
+        testing_boolean = cv_df.index.get_level_values(identifier) == validation_fold
 
         # Make sure train and validation folds are mutually exclusive
         if sum(training_boolean & testing_boolean) > 0:
-            raise ValueError(
-                "Training & testing folds are not exclusive, check your "
-                "dataset ! "
-            )
+            raise ValueError("Training & testing folds are not exclusive, check your dataset ! ")
 
         # Yield the train and tests indices
         train_idx = array_idx[training_boolean]
@@ -127,11 +113,11 @@ def leave_one_identifier_out_cv(
 
 
 def plot_pred_error(
-    y_test: Sequence,
-    y_pred: Sequence,
+    y_test: ArrayLike,
+    y_pred: ArrayLike,
     best_fit: bool = True,
     title: str | None = None,
-) -> matplotlib.pyplot.Axes:
+) -> matplotlib.axes.Axes:
     """Plots the actual targets from the dataset against the predicted
     values generated by a model. This plot is useful to detect noise or
     heteroscedasticity along a range of the target domain.
@@ -192,9 +178,7 @@ def plot_pred_error(
     # Draw a linear best fit line to estimate the correlation between the
     # predicted and measured value of the target variable
     if best_fit:
-        slope, intercept, r_value, p_value, std_err = linregress(
-            y_test, y_pred
-        )
+        slope, intercept, r_value, p_value, std_err = linregress(y_test, y_pred)
         x = y_test
         y = y_test * slope + intercept
         ax.plot(
@@ -213,13 +197,11 @@ def plot_pred_error(
     return ax
 
 
-def get_binary_metrics(y_test: Sequence, y_pred: Sequence) -> Dict[str, Any]:
+def get_binary_metrics(y_test: ArrayLike, y_pred: ArrayLike) -> dict[str, Any]:
     """Computes performance metrics for a binary classification task."""
 
-    if (n_labels := len(np.unique(y_pred))) > 2:
-        raise ValueError(
-            f"Number of labels = {n_labels} is not a binary classification task"
-        )
+    if (n_labels := len(np.unique(y_pred))) > 2:  # noqa: PLR2004
+        raise ValueError(f"Number of labels = {n_labels} is not a binary classification task")
 
     # Specificity = spc = tn/n
     tn = np.sum(np.logical_and(y_test == 0, y_pred == 0))  # Sum of negative cases
@@ -245,16 +227,16 @@ def get_binary_metrics(y_test: Sequence, y_pred: Sequence) -> Dict[str, Any]:
 
 def plot_feature_importances(
     ensemble_model: sklearn.ensemble.BaseEnsemble,
-    features_dict: Dict[str, Any] | None = None,
+    features_dict: dict[str, Any] | None = None,
     n_features: int = 10,
-    ax: matplotlib.pyplot.Axes | None = None,
-) -> matplotlib.pyplot.Axes:
+    ax: matplotlib.axes.Axes | None = None,
+) -> tuple[matplotlib.figure.Figure, NDArray[Any]]:
     """Plots feature importance from a ensemble model."""
 
-    if not ax:
+    if ax is None:
         fig, ax = plt.subplots()
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore
         plt.sca(ax)  # Set the axis to be the current axis
 
     feature_importances = ensemble_model.feature_importances_
@@ -299,25 +281,25 @@ def plot_feature_importances(
 
 
 def plot_confusion_matrix(
-    y_true,
-    y_pred,
-    print_score=True,
-    title=None,
-    labels=None,
-    normalize=False,
-    colorbar=False,
-    ax=None,
-    cmap=plt.cm.Blues,
-):
+    y_true: ArrayLike,
+    y_pred: ArrayLike,
+    print_score: bool = True,
+    title: str | None = None,
+    labels: list[str] | None = None,
+    normalize: bool = False,
+    colorbar: bool = False,
+    ax: matplotlib.axes.Axes | None = None,
+    cmap: str | matplotlib.colors.Colormap = "Blues",
+) -> matplotlib.axes.Axes:
     """Prints and plots a confusion matrix.
 
     Normalization can be applied by setting `normalize=True`.
     """
 
-    if not ax:
+    if ax is None:
         fig, ax = plt.subplots()
     else:
-        fig = ax.get_figure()
+        fig = ax.get_figure()  # type: ignore
         plt.sca(ax)  # Set the axis to be the current axis
 
     # Compute confusion matrix
@@ -338,7 +320,7 @@ def plot_confusion_matrix(
             title = "Confusion matrix"
 
     if print_score:
-        title = title + " (acc = %.2f)" % accuracy_score(y_true, y_pred)
+        title = f"{title} (acc = {accuracy_score(y_true, y_pred)}:.2f)"
 
     im = ax.imshow(cm, interpolation="nearest", cmap=cmap)
     ax.set_title(title)
@@ -347,13 +329,9 @@ def plot_confusion_matrix(
     else:
         pass
     ax.set_xticks(np.arange(len(classes)))
-    ax.set_xticklabels(
-        classes, rotation=45, ha="right", rotation_mode="anchor"
-    )
+    ax.set_xticklabels(classes, rotation=45, ha="right", rotation_mode="anchor")
     ax.set_yticks(np.arange(len(classes)))
-    ax.set_yticklabels(
-        classes, rotation=45, ha="right", rotation_mode="anchor"
-    )
+    ax.set_yticklabels(classes, rotation=45, ha="right", rotation_mode="anchor")
 
     # We need to adjust the ylimit
     ax.set_ylim((len(classes) - 0.5, -0.5))
@@ -376,19 +354,22 @@ def plot_confusion_matrix(
     return ax
 
 
-def compute_roc(y_true, y_score):
+def compute_roc(y_true: ArrayLike, y_score: ArrayLike) -> tuple[float, float, float]:
     """Computes ROC curve and area under the curve."""
 
-    fpr, tpr, thresholds = roc_curve(y_true, y_score)
+    fpr, tpr, _ = roc_curve(y_true, y_score)
     score = auc(fpr, tpr)
 
     return fpr, tpr, score
 
 
-def compute_precision_recall_metrics(y_true, y_score, metrics="mAP"):
-    """Computes recall and precision curves, and a score metrics (mean average precision or area under the curve)."""
+def compute_precision_recall_metrics(
+    y_true: ArrayLike, y_score: ArrayLike, metrics: str = "mAP"
+) -> tuple[float, float, float]:
+    """Computes recall and precision curves,
+    and a score metrics (mean average precision or area under the curve)."""
 
-    precision, recall, thresholds = precision_recall_curve(y_true, y_score)
+    precision, recall, _ = precision_recall_curve(y_true, y_score)
     # If the calculated recall and precision scores include a pair of (
     # precision=0, recall=0). There will be two conflicting precision values
     # for recall=0 (0 and 1), which could lead to artifacts.
@@ -403,7 +384,7 @@ def compute_precision_recall_metrics(y_true, y_score, metrics="mAP"):
     return recall, precision, score
 
 
-def roc_plot(ground_truth, y_probas):
+def roc_plot(ground_truth: ArrayLike, y_probas: ArrayLike) -> matplotlib.figure.Figure:
     """Plots a simple ROC curve."""
 
     # Get roc statistics
@@ -412,9 +393,7 @@ def roc_plot(ground_truth, y_probas):
     # Plot them
     fig, ax = plt.subplots()
     # Plot the curve
-    ax.plot(
-        fpr, tpr, lw=1, alpha=0.5, label="ROC curve (AUC = %0.2f)" % (roc_auc)
-    )
+    ax.plot(fpr, tpr, lw=1, alpha=0.5, label="ROC curve (AUC = %0.2f)" % (roc_auc))
 
     # Chance line
     ax.plot(
@@ -438,32 +417,26 @@ def roc_plot(ground_truth, y_probas):
     return fig
 
 
-def adjust_class_pred(y_scores, t):
+def adjust_class_pred(y_scores: ArrayLike, t: float) -> list[int]:
     """Adjusts class predictions based on the prediction threshold (t)."""
 
-    return [1 if y >= t else 0 for y in y_scores]
+    return [1 if y >= t else 0 for y in y_scores]  # type: ignore
 
 
-def precision_recall_threshold(y_true, y_score, precision_threshold=None):
+def precision_recall_threshold(
+    y_true: ArrayLike, y_score: ArrayLike, precision_threshold: float | None = None
+) -> tuple[matplotlib.axes.Axes, matplotlib.figure.Figure]:
     """Returns the confusion matrix of class predictions adjusted to a given precision threshold."""
 
     precision, recall, thresholds = precision_recall_curve(y_true, y_score)
     # Find the best recall/precision compromise
     if precision_threshold:
-        logger.info(
-            "Finding optimal threshold with precision= %.2f"
-            % precision_threshold
-        )
+        logger.info("Finding optimal threshold with precision= %.2f" % precision_threshold)
         precision_tr = precision[:-1]
         recall_tr = recall[:-1]
         if sum(precision_tr >= precision_threshold) == 0:
-            precision_threshold = find_nearest(
-                precision_tr, precision_threshold
-            )
-            logger.info(
-                "Threshold is too stringent, closest is %.2f"
-                % precision_threshold
-            )
+            precision_threshold = find_nearest(precision_tr, precision_threshold)
+            logger.info(f"Threshold is too stringent, closest is {precision_threshold:.2f}")
 
         precision_mask = precision_tr >= precision_threshold
         threshold_idx = np.flatnonzero(precision_mask)
@@ -487,7 +460,7 @@ def precision_recall_threshold(y_true, y_score, precision_threshold=None):
         recall,
         precision,
         color="b",
-        label=r"F1-score = %.2f" % f1_score(y_true, adjusted_y_pred),
+        label=f"F1-score = {f1_score(y_true, adjusted_y_pred):.2f}",
         lw=1,
         alpha=0.8,
     )
@@ -498,7 +471,7 @@ def precision_recall_threshold(y_true, y_score, precision_threshold=None):
         recall[close_default_clf],
         c="r",
         linestyle="--",
-        label=("threshold=%.2f" % t),
+        label="threshold=%.2f" % t,
     )
     ax.axhline(precision[close_default_clf], c="k", linestyle="--")
     # Set aspect
@@ -506,18 +479,20 @@ def precision_recall_threshold(y_true, y_score, precision_threshold=None):
     ax.set_ylim([-0.05, 1.05])
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
-    ax.set_title(
-        "Precision and Recall curve threshold at precision=%.2f"
-        % precision_threshold
-    )
+    ax.set_title(f"Precision and Recall curve threshold at precision={precision_threshold:.2f}")
     ax.set_aspect("equal", adjustable="box")
     remove_spines(ax, "nobox")
     ax.legend(loc="lower right")
 
-    return [conf_mat_fig, curve_fig]
+    return conf_mat_fig, curve_fig
 
 
-class BinaryClassifierAnalyzer(object):
+class ScalerType(str, Enum):
+    MIN_MAX = "min_max"
+    ZSCORE = "zscore"
+
+
+class BinaryClassifierAnalyzer:
     """Class to analyse cross-validation and selectivity/sensitivity
     thresholds in a binary classification task.
 
@@ -529,7 +504,7 @@ class BinaryClassifierAnalyzer(object):
         y:
             A label matrix
         cv:
-            A scikit-learn cross-validation instance
+            A scikit-learn cross-validator instance
         scale:
             A string to specify scaling type (minmax or zscore)
         equalize_class:
@@ -538,35 +513,27 @@ class BinaryClassifierAnalyzer(object):
 
     def __init__(
         self,
-        classifier,
-        X,
-        y,
-        cv=None,
-        scale=None,
-        equalize_class=False,
-        verbose=False
+        classifier: sklearn.base.BaseEstimator,
+        X: ArrayLike,
+        y: ArrayLike,
+        cv: sklearn.model_selection.BaseCrossValidator = None,
+        scale: str | None = None,
+        equalize_class: bool = False,
+        verbose: bool = False,
     ):
         # Parse initialization arguments
         self.classifier = classifier
 
         # Prepare X and y data
-        try:
-            self.feature_names = get_pd_name(X)
-            self.target_names = get_pd_name(y)
-            # Convert to numpy array
-            self.X = X.values
-            self.y = y.values
-        except AttributeError:
-            self.feature_names = [
-                "Feature n°%d" % i for i in np.arange(X.shape[1])
-            ]
-            if len(y.shape) > 1:
-                y_dim = y.shape[1]
-            else:
-                y_dim = 1
-            self.target_names = ["Target n°%d" % i for i in np.arange(y_dim)]
-            self.X = X
-            self.y = y
+        self.X = np.asarray(X)
+        self.y = np.asarray(y)
+
+        self.feature_names = ["Feature n°%d" % i for i in np.arange(self.X.shape[1])]
+        if len(self.y.shape) > 1:
+            y_dim = self.y.shape[1]
+        else:
+            y_dim = 1
+        self.target_names = ["Target n°%d" % i for i in np.arange(y_dim)]
 
         # Cross validator
         if not cv:
@@ -574,9 +541,9 @@ class BinaryClassifierAnalyzer(object):
         else:
             self.cv = cv
         # Scaler
-        if scale == "minmax":
+        if ScalerType(scale) is ScalerType.MIN_MAX:
             self.scaler = MinMaxScaler()
-        elif scale == "zscore":
+        elif ScalerType(scale) is ScalerType.ZSCORE:
             self.scaler = StandardScaler()
         else:
             self.scaler = None
@@ -585,24 +552,22 @@ class BinaryClassifierAnalyzer(object):
         self.verbose = verbose
 
         # Initialize some parameters
-        self.ntargets = y.shape[-1]
+        self.ntargets = self.y.shape[-1]
 
         # Cross validate at initialization
         self.cross_validate()
 
-    def cross_validate(self):
+    def cross_validate(self: Self) -> Self:
         """Cross-validation loop"""
 
-        self.y_score_ = {k: [] for k in self.target_names}
-        self.ground_truth_ = {k: [] for k in self.target_names}
+        self.y_score_: dict[str, Any] = {k: [] for k in self.target_names}
+        self.ground_truth_: dict[str, Any] = {k: [] for k in self.target_names}
 
         # We loop through CVs and target
-        for i, (train, test) in enumerate(
-            self.cv.split(self.X, self.y), start=1
-        ):
+        for cv_fold, (train, test) in enumerate(self.cv.split(self.X, self.y), start=1):
             logger.info(
                 "Round %d, training on %d samples, testing on %d samples"
-                % (i, len(train), len(test))
+                % (cv_fold, len(train), len(test))
             )
             X_train, X_test, y_train, y_test = (
                 self.X[train],
@@ -614,8 +579,7 @@ class BinaryClassifierAnalyzer(object):
             # Equalize training samples. This must be done AFTER cross
             # validation splitting to avoid overfitting
             if self.equalize_class:
-                logger.info(
-                    "Oversampling underrepresented training data with SMOTE algorithm...")
+                logger.info("Oversampling underrepresented training data with SMOTE algorithm...")
                 X_train, y_train = SMOTE().fit_resample(X_train, y_train)
 
             # X train and X tests definition
@@ -654,7 +618,7 @@ class BinaryClassifierAnalyzer(object):
 
         return self
 
-    def plot_curve(self, curve="roc"):
+    def plot_curve(self: Self, curve: str = "roc") -> list[matplotlib.figure.Figure]:
         """Plot the curves over cross-validation folds"""
         fig_dict = {}
         x_grid = np.linspace(0, 1, 100)
@@ -665,11 +629,11 @@ class BinaryClassifierAnalyzer(object):
                 roc_output = [
                     compute_roc(y_true, y_score)
                     for y_true, y_score in zip(
-                        self.ground_truth_[target], self.y_score_[target]
+                        self.ground_truth_[target], self.y_score_[target], strict=True
                     )
                 ]
                 # then transpose it using zip
-                x_cv, y_cv, score_cv = zip(*roc_output)
+                x_cv, y_cv, score_cv = zip(*roc_output, strict=True)
                 # Label of the plot
                 x_label = "False Positive Rate"
                 y_label = "True Positive Rate"
@@ -678,16 +642,15 @@ class BinaryClassifierAnalyzer(object):
                 precision_recall_output = [
                     compute_precision_recall_metrics(y_true, y_score)
                     for y_true, y_score in zip(
-                        self.ground_truth_[target], self.y_score_[target]
+                        self.ground_truth_[target], self.y_score_[target], strict=True
                     )
                 ]
                 # then transpose it using zip
-                x_cv, y_cv, score_cv = zip(*precision_recall_output)
+                x_cv, y_cv, score_cv = zip(*precision_recall_output, strict=True)
 
                 # AP expected by chance
                 rand_mAP_cv = [
-                    np.sum(y_true) / len(y_true)
-                    for y_true in self.ground_truth_[target]
+                    np.sum(y_true) / len(y_true) for y_true in self.ground_truth_[target]
                 ]
 
                 # Label of the plot
@@ -696,20 +659,11 @@ class BinaryClassifierAnalyzer(object):
 
             fig, ax = plt.subplots()
             # Plot loop
-            for i, (x, y, score) in enumerate(zip(x_cv, y_cv, score_cv)):
+            for i, (x, y, score) in enumerate(zip(x_cv, y_cv, score_cv, strict=True)):
                 if curve == "precision-recall":
-                    label = "%s fold %d (mAP = %0.2f/ random = %0.2f)" % (
-                        curve.title(),
-                        i,
-                        score,
-                        rand_mAP_cv[i],
-                    )
+                    label = f"{curve.title()} fold {i} (mAP = {score:.2f} / {rand_mAP_cv[i]:.2f})"
                 elif curve == "roc":
-                    label = "%s fold %d (AUC = %0.2f)" % (
-                        curve.title(),
-                        i,
-                        score,
-                    )
+                    label = f"{curve.title()} fold {i} (AUC = {score:.2f})"
 
                 ax.plot(x, y, lw=1, alpha=0.5, label=label)
 
@@ -717,9 +671,7 @@ class BinaryClassifierAnalyzer(object):
             if curve == "roc":
                 # Interpolate each fold to be able to average them, set the
                 # boundary
-                interp_y_cv = [
-                    np.interp(x_grid, x, y) for x, y in zip(x_cv, y_cv)
-                ]
+                interp_y_cv = [np.interp(x_grid, x, y) for x, y in zip(x_cv, y_cv, strict=True)]
                 mean_x = x_grid
                 mean_y = np.mean(interp_y_cv, axis=0)
                 # Constraint the interpolation to 0,1 range
@@ -741,8 +693,7 @@ class BinaryClassifierAnalyzer(object):
                     mean_x,
                     mean_y,
                     color="b",
-                    label=r"Mean %s (AUC = %0.2f $\pm$ %0.2f)"
-                    % (curve.title(), mean_auc, std_auc),
+                    label=rf"Mean {curve.title()} (AUC = {mean_auc:0.2f} $\pm$ {std_auc:0.2f})",
                     lw=2,
                     alpha=0.8,
                 )
@@ -764,7 +715,7 @@ class BinaryClassifierAnalyzer(object):
             ax.set_ylim([-0.05, 1.05])
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
-            ax.set_title("%s for %s" % (curve.capitalize(), target))
+            ax.set_title(f"{curve.capitalize()} for {target}")
             ax.legend(loc="lower right")
             ax.set_aspect("equal", adjustable="box")
             remove_spines(ax, "nobox")
@@ -772,5 +723,3 @@ class BinaryClassifierAnalyzer(object):
             fig_dict[target] = fig
 
         return list(fig_dict.values())
-
-

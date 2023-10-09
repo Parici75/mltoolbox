@@ -1,7 +1,9 @@
-"""Latent Space Subpackage
+"""Latent Space methods for the analysis for multivariate datasets."""
 
-A collection of functions for exploratory data analysis of multidimensional datasets.
+from mltoolbox.latent_space._latent_space import (
+    ModelType,
+    PCALatentSpace,
+    TSNELatentSpace,
+)
 
-"""
-
-from .latent_space import LatentSpace
+__all__ = ["PCALatentSpace", "TSNELatentSpace", "ModelType"]

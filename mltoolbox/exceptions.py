@@ -1,6 +1,7 @@
 """
-Exceptions classes
+Exceptions classes.
 """
+
 
 class ModelFittingFailure(Exception):
     pass

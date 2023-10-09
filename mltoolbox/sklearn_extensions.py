@@ -1,34 +1,33 @@
-from typing import List, Sequence, Tuple
+from typing import Any
 
 import numpy as np
 import sklearn
+from numpy.typing import ArrayLike, NDArray
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils.validation import check_is_fitted
 
 
-class PrefitVotingClassifier(object):
+class PrefitVotingClassifier:
     """Stripped-down version of VotingClassifier that uses prefit estimators
     see https://gist.github.com/tomquisel/a421235422fdf6b51ec2ccc5e3dee1b4
     """
 
     def __init__(
         self,
-        estimators: List[Tuple[str, sklearn.base.BaseEstimator]],
+        estimators: list[tuple[str, sklearn.base.BaseEstimator]],
         voting: str = "hard",
-        weights: Sequence | None = None,
+        weights: ArrayLike | None = None,
     ):
         self.estimators = [e[1] for e in estimators]
         self.named_estimators = dict(estimators)
         self.voting = voting
         self.weights = weights
 
-    def fit(
-        self, X: Sequence, y: Sequence, sample_weight: Sequence | None = None
-    ):
+    def fit(self, X: ArrayLike, y: ArrayLike, sample_weight: ArrayLike | None = None) -> None:
         raise NotImplementedError
 
-    def predict(self, X: Sequence) -> np.ndarray:
-        """ Predict class labels for X.
+    def predict(self, X: ArrayLike) -> NDArray[Any]:
+        """Predict class labels for X.
 
         Parameters
         ----------
@@ -54,20 +53,18 @@ class PrefitVotingClassifier(object):
             maj = np.apply_along_axis(
                 lambda x: np.argmax(np.bincount(x, weights=self.weights)),
                 axis=1,
-                arr=self.le_.transform(predictions.ravel()).reshape(
-                    predictions.shape
-                ),
+                arr=self.le_.transform(predictions.ravel()).reshape(predictions.shape),
             )
 
             maj = self.le_.inverse_transform(maj)
 
         return maj
 
-    def _collect_probas(self, X: Sequence) -> np.ndarray:
+    def _collect_probas(self, X: ArrayLike) -> NDArray[Any]:
         """Collect results from estimator predict calls."""
         return np.asarray([clf.predict_proba(X) for clf in self.estimators])
 
-    def predict_proba(self, X: Sequence) -> float:
+    def predict_proba(self, X: ArrayLike) -> float:
         """Compute probabilities of possible outcomes for samples in X.
 
         Parameters
@@ -83,15 +80,11 @@ class PrefitVotingClassifier(object):
         """
 
         if self.voting == "hard":
-            raise AttributeError(
-                f"predict_proba is not available when voting={self.voting}"
-            )
+            raise AttributeError(f"predict_proba is not available when voting={self.voting}")
         check_is_fitted(self, "estimators")
-        return np.average(
-            self._collect_probas(X), axis=0, weights=self.weights
-        )
+        return np.average(self._collect_probas(X), axis=0, weights=self.weights)
 
-    def transform(self, X: Sequence) -> np.ndarray:
+    def transform(self, X: ArrayLike) -> NDArray[Any]:
         """Return class labels or probabilities for X for each estimator.
 
         Parameters
@@ -115,6 +108,8 @@ class PrefitVotingClassifier(object):
 
         return self._predict(X)
 
-    def _predict(self, X: Sequence) -> np.ndarray:
-        """Collect results from estimator predict calls. """
+    def _predict(self, X: ArrayLike) -> NDArray[Any]:
+        """Collect results from estimator predict calls."""
+        return np.asarray([clf.predict(X) for clf in self.estimators]).T
+        return np.asarray([clf.predict(X) for clf in self.estimators]).T
         return np.asarray([clf.predict(X) for clf in self.estimators]).T

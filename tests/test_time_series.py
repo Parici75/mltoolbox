@@ -3,6 +3,7 @@ import pytest
 
 from mltoolbox.time_series import ccf
 
+
 class TestCcf:
     def test_ccf_without_ci(self):
         # Generates two waveform of period T=5
@@ -34,7 +35,7 @@ class TestCcf:
             lag = 10
 
             ccf(x_signal, y_signal, lag=lag)
-            assert ("Invalid value for lag" in caplog.text)
+            assert "Invalid value for lag" in caplog.text
 
         with pytest.raises(ValueError):
             x_signal = np.random.rand(10)
@@ -42,6 +43,4 @@ class TestCcf:
             lag = 10
 
             ccf(x_signal, y_signal, lag=lag)
-            assert ("Data arrays must have the same length"in caplog.text)
-
-
+            assert "Data arrays must have the same length" in caplog.text
