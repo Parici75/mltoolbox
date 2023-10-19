@@ -12,13 +12,13 @@ Subpackages:
     A framework for multivariate Gaussian anomaly detection.
 
 - latent_space
-    A framework for exploratory data analysis of multivariate datasets.
+    A framework for exploring the latent dimensions of multivariate datasets.
 
 
 Modules:
 
 - comp_stats
-    Common methods for computational statistics.
+    Common methods of computational statistics.
 
 - keras
     Utility functions to extend Keras/Tensorflow methods.
@@ -33,7 +33,6 @@ Modules:
     Tools for machine learning model training paradigms.
 
 """
-
 
 __all__ = [
     "comp_stats",

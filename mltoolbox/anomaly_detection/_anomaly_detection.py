@@ -1,5 +1,7 @@
 """Main classes of the anomaly_detection subpackage."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from functools import wraps
@@ -7,6 +9,7 @@ from typing import Any, Self, TypeVar, cast
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed
 from numpy.typing import NDArray
 from pydantic import field_validator, model_validator
 from sklearn.exceptions import NotFittedError
@@ -52,7 +55,7 @@ class GaussianAnomalyQuantifier(BaseModel):
                 if (pca_model := self.pca_model) is not None:
                     # Fit the PCA first
                     try:
-                        check_is_fitted(pca_model)
+                        check_is_fitted(pca_model.model)
                     except NotFittedError:
                         scores = pca_model.fit_and_project_data(df)
                     else:
@@ -63,7 +66,7 @@ class GaussianAnomalyQuantifier(BaseModel):
                     try:
                         component_idx = np.where(cumulative_variance >= self.var_explained)[0][0]
                     except IndexError:
-                        logging.warning(
+                        logger.warning(
                             f"{self.var_explained} variance not reached with available components,"
                             f" consider setting PCA n_components > {pca_model.n_components}"
                         )
@@ -164,7 +167,7 @@ class GaussianAnomalyQuantifier(BaseModel):
         return np.where(log_probability < np.log(threshold))[0]
 
 
-class HyperparameterTuner(BaseModel):
+class GMMHyperparameterTuner(BaseModel):
     """Wrapper class for hyperparameter tuning of GaussianAnomalyQuantifier model."""
 
     pca_model: PCALatentSpace | None = None
@@ -173,7 +176,7 @@ class HyperparameterTuner(BaseModel):
     covariance_type: list[str] = ["spherical", "tied", "diag", "full"]
 
     @field_validator("covariance_type")
-    def validate_autorange(cls, value: list[str] | str) -> list[str]:
+    def validate_covariance_type(cls, value: list[str] | str) -> list[str]:
         if isinstance(value, str):
             return [value]
         return value
@@ -189,56 +192,53 @@ class HyperparameterTuner(BaseModel):
                 A matrix of shape (n_observation, n_variables) t fit the model.
             n_components:
                 The number of mixture components
-                If None, tuning is done with using a full grid of of components.
+                If None, tuning is done with using a full grid of (1, max_n_components).
 
         Returns:
             A tuple of optimal (n_components, covariance_type)
 
         """
-        lowest_bic = np.infty
-        bic = []
-
         # Parse arguments
         if n_components is None:
             n_components_array = np.arange(1, min(self.max_n_components, data_matrix.shape[0]) + 1)
         else:
-            n_components_array = np.arange(1, n_components + 1)
+            n_components_array = np.array([n_components])
+
+        def _fit_model(n: int, covariance: str) -> tuple[float, GaussianAnomalyQuantifier | None]:
+            try:
+                model = GaussianAnomalyQuantifier.initialize(
+                    pca_model=self.pca_model,
+                    var_explained=self.var_explained,
+                    n_components=n,
+                    covariance_type=covariance,
+                ).fit(data_matrix)
+                bic = model.compute_bic(data_matrix)
+                return bic, model
+            except ValueError as exc:
+                # Fitting failed for some reason
+                logger.error(exc)
+                return np.inf, None
 
         logger.info(
             f"Finding the best parameters in the {self.covariance_type} x"
             f" {n_components_array} components grid"
         )
+        # Parallelize model fitting
+        results = Parallel(n_jobs=-1)(
+            delayed(_fit_model)(n, covariance)
+            for n in n_components_array
+            for covariance in self.covariance_type
+        )
 
-        # Loop
-        for covariance in self.covariance_type:
-            # Loop through component configuration
-            for n in n_components_array:
-                # Fit a Gaussian mixture with EM
-                logger.debug(
-                    f"Fitting model with {n} components and {covariance} covariance matrix"
-                )
-                try:
-                    model = GaussianAnomalyQuantifier.initialize(
-                        pca_model=self.pca_model,
-                        var_explained=self.var_explained,
-                        n_components=n,
-                        covariance_type=covariance,
-                    ).fit(data_matrix)
-                except ValueError as exc:
-                    # Fitting failed for some reasons, so we continue to loop
-                    logger.info(exc)
-                    continue
-                except Exception:
-                    raise
+        # Find the best model and its parameters
+        best_bic = np.inf
+        best_model = None
+        for bic, model in results:
+            if bic < best_bic:
+                best_bic = bic
+                best_model = model
 
-                # Calculate bic and update best model
-                bic.append(model.compute_bic(data_matrix))
-                if bic[-1] < lowest_bic:
-                    lowest_bic = bic[-1]
-                    best_model = model
-
-        # Check that we manage to fit at least one model
-        if len(bic) == 0:
+        if best_model is None:
             raise ModelFittingFailure("Impossible to fit a model")
 
         return (

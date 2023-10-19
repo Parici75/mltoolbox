@@ -14,8 +14,8 @@ class TestPCALatentSpace:
 
     def test_fit(self):
         model = PCALatentSpace.initialize(standardize=True).fit(iris)
-        assert model.loadings_ is not None
-        assert (model.pc_var_correlations_ == model.loadings_).all()
+        assert model.loadings is not None
+        assert (model.pc_var_correlations == model.loadings).all()
 
     def test_reconstruct_variables(self):
         model = PCALatentSpace.initialize().fit(iris)

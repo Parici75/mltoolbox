@@ -1,5 +1,7 @@
 """Main classes of the Latent space subpackage."""
 
+from __future__ import annotations
+
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum
@@ -128,6 +130,24 @@ class PCALatentSpace(LatentSpace):
     latent_model_type: ModelType = ModelType.PCA
     model: PCA
     _projection_dimension: str = "PC%d"
+    _loadings: NDArray[np.float_]
+    _pc_var_correlations_: NDArray[np.float_]
+
+    @property
+    def loadings(self) -> NDArray[np.float_]:
+        return self._loadings
+
+    @loadings.setter
+    def loadings(self, value: NDArray[np.float_]) -> None:
+        self._loadings = value
+
+    @property
+    def pc_var_correlations(self) -> NDArray[np.float_]:
+        return self._pc_var_correlations_
+
+    @pc_var_correlations.setter
+    def pc_var_correlations(self, value: NDArray[np.float_]) -> None:
+        self._pc_var_correlations_ = value
 
     def _fit(self, data_matrix: pd.DataFrame) -> Self:
         """Fit the model to the data_matrix."""
@@ -135,15 +155,15 @@ class PCALatentSpace(LatentSpace):
         self.model.fit(data_matrix)
 
         # Calculate the loadings
-        self.loadings_ = self.model.components_.T * np.sqrt(self.model.explained_variance_)
+        self.loadings = self.model.components_.T * np.sqrt(self.model.explained_variance_)
 
         # Calculates correlation matrix between PC and original variables
         if self.standardize:
             # Correlation between variable and the PC is given by the corresponding loading
-            self.pc_var_correlations_ = self.loadings_
+            self.pc_var_correlations = self.loadings
         else:
             # Divide by original variables standard deviation
-            self.pc_var_correlations_ = self.loadings_ / data_matrix.std().values.reshape(-1, 1)
+            self.pc_var_correlations = self.loadings / data_matrix.std().values.reshape(-1, 1)
 
         return self
 
@@ -159,8 +179,8 @@ class PCALatentSpace(LatentSpace):
         sorted by decreasing magnitude.
         """
 
-        sorted_loading = np.sort(np.abs(self.loadings_[:, pc - 1]))[::-1]
-        var_idx = self.model.feature_names_in_[np.argsort(np.abs(self.loadings_[:, pc - 1]))[::-1]]
+        sorted_loading = np.sort(np.abs(self.loadings[:, pc - 1]))[::-1]
+        var_idx = self.model.feature_names_in_[np.argsort(np.abs(self.loadings[:, pc - 1]))[::-1]]
 
         return pd.Series(sorted_loading, index=pd.Index(var_idx, name="original_variable"))
 
@@ -180,11 +200,11 @@ class PCALatentSpace(LatentSpace):
         reconstructed_variables = {}
         for variable in self.model.feature_names_in_:
             var_idx = np.where(self.model.feature_names_in_ == variable)[0][0]
-            sorted_pc_index = np.argsort(self.pc_var_correlations_[var_idx, :])[::-1]
+            sorted_pc_index = np.argsort(self.pc_var_correlations[var_idx, :])[::-1]
             var_cumsum = 0
             pc_idx = []
             for idx in sorted_pc_index:
-                var_cumsum += self.pc_var_correlations_[var_idx, idx] ** 2
+                var_cumsum += self.pc_var_correlations[var_idx, idx] ** 2
                 pc_idx.append(idx)
                 if var_cumsum > (var_explained / 100):
                     break
@@ -222,7 +242,7 @@ class TSNELatentSpace(LatentSpace):
     _projection_dimension: str = "Dimension %d"
     n_components: int = 2
 
-    def _fit(self, data_matrix: NDArray[Any]) -> Self:
+    def _fit(self, data_matrix: NDArray[np.float_]) -> Self:
         """Fit the model to the data_matrix."""
         # Fit the scaler and the model
         self.model.fit(data_matrix)

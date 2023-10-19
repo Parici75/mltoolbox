@@ -1,3 +1,5 @@
+PROJECT_NAME=mltoolbox
+
 # Python env
 PYTHON_SHELL_VERSION := $(shell python --version | cut -d " " -f 2)
 POETRY_AVAILABLE := $(shell which poetry > /dev/null && echo 1 || echo 0)
@@ -45,7 +47,7 @@ typecheck-%:
 typecheck: $(addprefix typecheck-, $(CI_DIRECTORIES))
 
 test:
-	@poetry run pytest -s -o log-cli=true --rootdir ./  --cache-clear tests
+	@poetry run pytest -s --rootdir ./  --cache-clear tests
 
 ci: lint typecheck test
 
@@ -63,7 +65,7 @@ pre-commit: set-pre-commit run-pre-commit
 
 # Documentation
 update-doc:
-	@poetry run sphinx-apidoc --module-first --no-toc -o docs/source statsplotly
+	@poetry run sphinx-apidoc --module-first --no-toc -o docs/source $(PROJECT_NAME)
 
 build-doc:
 	@poetry run sphinx-build docs ./docs/_build/html/

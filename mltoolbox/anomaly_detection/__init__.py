@@ -2,7 +2,7 @@
 
 from mltoolbox.anomaly_detection._anomaly_detection import (
     GaussianAnomalyQuantifier,
-    HyperparameterTuner,
+    GMMHyperparameterTuner,
 )
 
-__all__ = ["GaussianAnomalyQuantifier", "HyperparameterTuner"]
+__all__ = ["GaussianAnomalyQuantifier", "GMMHyperparameterTuner"]

@@ -1,5 +1,7 @@
 """Tools for common time-series analyses."""
 
+from __future__ import annotations
+
 import random
 from typing import Any
 
@@ -15,7 +17,7 @@ def ccf(
     ci: float | None = None,
     n_boot: int = 1000,
     block_width: int = 5,
-) -> tuple[NDArray[Any], NDArray[Any] | None]:
+) -> tuple[NDArray[np.float_], NDArray[Any] | None]:
     """Calculates the sample cross correlation function (CCF) across time lags between a "predictor"
     x_series and a "predicted" y_series.
 

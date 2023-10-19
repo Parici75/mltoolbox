@@ -1,5 +1,7 @@
 """Tools for Machine Learning training paradigms."""
 
+from __future__ import annotations
+
 import itertools
 import logging
 from collections.abc import Generator
@@ -38,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 def leave_one_identifier_out_cv(
     data_df: pd.DataFrame, identifier: str, identifier_isolation: bool = False
-) -> Generator[tuple[NDArray[Any], NDArray[Any]], None, None]:
+) -> Generator[tuple[NDArray[np.float_], NDArray[np.float_]], None, None]:
     """A generic cross-validation utility for generation of flexible
     leave-one-identifier-out cross-validation folds.
 
@@ -722,4 +724,5 @@ class BinaryClassifierAnalyzer:
 
             fig_dict[target] = fig
 
+        return list(fig_dict.values())
         return list(fig_dict.values())

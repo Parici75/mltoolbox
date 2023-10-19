@@ -1,5 +1,7 @@
 """"Computational statistics utilities."""
 
+from __future__ import annotations
+
 import logging
 from typing import Any
 
@@ -56,7 +58,7 @@ def bootstrap_corr_pval(
     return np.sum(boot_sample_corr < pcc) / n_boot
 
 
-def linalg_norm(vector: NDArray[Any], matrix: NDArray[Any]) -> NDArray[Any]:
+def linalg_norm(vector: NDArray[np.float_], matrix: NDArray[Any]) -> NDArray[np.float_]:
     """Computes pairwise euclidian distance between a vector and each row of a matrix."""
 
     return np.linalg.norm(vector - matrix, axis=1)
