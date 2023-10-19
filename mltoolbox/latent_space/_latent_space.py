@@ -6,7 +6,7 @@ from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from functools import wraps
-from typing import Any, Self, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -14,6 +14,7 @@ from numpy.typing import NDArray
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.preprocessing import StandardScaler
+from typing_extensions import Self
 
 from mltoolbox.base_model import BaseModel
 

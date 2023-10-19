@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, Self, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ from pydantic import field_validator, model_validator
 from sklearn.exceptions import NotFittedError
 from sklearn.mixture import GaussianMixture
 from sklearn.utils.validation import check_is_fitted
+from typing_extensions import Self
 
 from mltoolbox.base_model import BaseModel
 from mltoolbox.exceptions import ModelFittingFailure

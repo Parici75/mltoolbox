@@ -6,7 +6,7 @@ import itertools
 import logging
 from collections.abc import Generator
 from enum import Enum
-from typing import Any, Self
+from typing import Any
 
 import matplotlib.pyplot
 import matplotlib.pyplot as plt
@@ -34,6 +34,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import StratifiedKFold
 from sklearn.preprocessing import MinMaxScaler, StandardScaler
 from sklearn.utils.multiclass import unique_labels
+from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 
