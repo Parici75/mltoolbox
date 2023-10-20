@@ -181,7 +181,10 @@ class GMMHyperparameterTuner(BaseModel):
         return value
 
     def find_best_param(
-        self, data_matrix: pd.DataFrame, n_components: int | None = None
+        self,
+        data_matrix: pd.DataFrame,
+        n_components: int | None = None,
+        **kwargs: Any,
     ) -> tuple[int, str]:
         """Performs selection of the best set of hyperparameters by
         minimizing the bic.
@@ -191,7 +194,9 @@ class GMMHyperparameterTuner(BaseModel):
                 A matrix of shape (n_observation, n_variables) t fit the model.
             n_components:
                 The number of mixture components
-                If None, tuning is done with using a full grid of (1, max_n_components).
+                If None, tuning is done using a full grid of (1, max_n_components).
+            **kwargs:
+                Any (key: value) argument accepted by :func:`GaussianAnomalyQuantifier.initialize()`
 
         Returns:
             A tuple of optimal (n_components, covariance_type)
@@ -210,6 +215,7 @@ class GMMHyperparameterTuner(BaseModel):
                     var_explained=self.var_explained,
                     n_components=n,
                     covariance_type=covariance,
+                    **kwargs,
                 ).fit(data_matrix)
                 bic = model.compute_bic(data_matrix)
                 return bic, model
