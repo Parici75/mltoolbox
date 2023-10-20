@@ -18,6 +18,7 @@ To use the keras extensions in `mltoolbox.keras.py` module, install tensorflow d
 
 Requirements
 -
+- [Python >= 3.10](https://www.python.org/downloads/release/python-3100/)
 - [Pymodules](https://github.com/Parici75/pymodules), a collection of general purpose utility functions.
 
 

@@ -1,7 +1,5 @@
 """Tools for Machine Learning training paradigms."""
 
-from __future__ import annotations
-
 import itertools
 import logging
 from collections.abc import Generator
@@ -725,5 +723,4 @@ class BinaryClassifierAnalyzer:
 
             fig_dict[target] = fig
 
-        return list(fig_dict.values())
         return list(fig_dict.values())

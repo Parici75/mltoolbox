@@ -1,7 +1,5 @@
 """Main classes of the Latent space subpackage."""
 
-from __future__ import annotations
-
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum

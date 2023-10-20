@@ -1,7 +1,5 @@
 """Tools for common time-series analyses."""
 
-from __future__ import annotations
-
 import random
 from typing import Any
 

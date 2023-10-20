@@ -7,7 +7,7 @@ license = "BSD-3-Clause"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.12"
+python = ">=3.10,<3.12"
 pydantic = "^2.4.2"
 numpy = "^1.26.0"
 pandas = "^2.1.1"
@@ -81,6 +81,7 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 
 [tool.mypy]
 exclude = ["tests"]
+python_version = 3.11
 
 # Strict guidelines taken from https://github.com/pytorch/pytorch/blob/master/mypy-strict.ini
 cache_dir = ".mypy_cache/strict"
@@ -111,7 +112,7 @@ strict_equality = true
 module = ["numpy.*", "scipy.*", "sklearn.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*"]
 ignore_missing_imports = true
 
-
+# Tests
 [tool.pytest.ini_options]
 log_cli = true
 log_cli_level = 10
