@@ -1,4 +1,4 @@
-""""Computational statistics utilities."""
+"""Computational statistics utilities."""
 
 import logging
 from typing import Any
@@ -91,7 +91,7 @@ def fancy_dendrogram(*args: Any, **kwargs: Any) -> matplotlib.figure.Figure:
             if y > annotate_above:
                 plt.plot(x, y, "o", c=c)
                 plt.annotate(
-                    "%.3g" % y,
+                    f"{y:.3g}",
                     (x, y),
                     xytext=(0, -5),
                     textcoords="offset points",

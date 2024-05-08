@@ -1,20 +1,24 @@
 """Main classes of the Latent space subpackage."""
 
+import logging
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from functools import wraps
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from openTSNE.sklearn import TSNE
 from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
+from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
-from typing_extensions import Self
+from sklearn.utils.validation import check_is_fitted
 
 from mltoolbox.base_model import BaseModel
+
+logger = logging.getLogger(__name__)
 
 
 class ModelType(str, Enum):
@@ -23,6 +27,8 @@ class ModelType(str, Enum):
 
 
 F = TypeVar("F", bound=Callable[..., Any])
+
+STANDARD_MIN_VAR_RETAINED = 0.8
 
 
 class LatentSpace(BaseModel, metaclass=ABCMeta):
@@ -36,16 +42,16 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
 
     class Decorators:
         @staticmethod
-        def _projected_data_to_df(project_data_function: F) -> F:
-            @wraps(project_data_function)
+        def _projected_data_to_df(data_projection_function: F) -> F:
+            @wraps(data_projection_function)
             def wrapper(self: Self, data_matrix: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
                 """Wraps the projected data in a DataFrame."""
-                projected_data = project_data_function(self, data_matrix, *args, **kwargs)
+                projected_data = data_projection_function(self, data_matrix, *args, **kwargs)
 
                 return pd.DataFrame(
                     projected_data,
                     columns=[
-                        self._projection_dimension % (i + 1)  # type: ignore
+                        f"{self.projection_dimension} {i + 1}"  # type: ignore
                         for i in range(projected_data.shape[1])
                     ],
                     index=data_matrix.index,
@@ -70,10 +76,10 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
             return cast(F, wrapper)
 
         @staticmethod
-        def _apply_standardizer(project_model_function: F) -> F:
+        def _apply_standardizer(data_projection_function: F) -> F:
             """Apply a standardizer to the data."""
 
-            @wraps(project_model_function)
+            @wraps(data_projection_function)
             def wrapper(self: Self, df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
                 if self.standardize:  # type: ignore
                     df = pd.DataFrame(
@@ -81,7 +87,7 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
                         index=df.index,
                         columns=df.columns,
                     )
-                return project_model_function(self, df, *args, **kwargs)
+                return data_projection_function(self, df, *args, **kwargs)
 
             return cast(F, wrapper)
 
@@ -94,17 +100,13 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
         return self._fit(data_matrix)
 
     @abstractmethod
-    def _project_data(
-        self, data_matrix: pd.DataFrame, params_dict: dict[str, Any] | None = None
-    ) -> pd.DataFrame:
+    def _project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
         pass
 
     @Decorators._apply_standardizer
     @Decorators._projected_data_to_df
-    def project_data(
-        self, data_matrix: pd.DataFrame, params_dict: dict[str, Any] | None = None
-    ) -> pd.DataFrame:
-        return self._project_data(data_matrix, params_dict)
+    def project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
+        return self._project_data(data_matrix)
 
     @Decorators._projected_data_to_df
     def fit_and_project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
@@ -128,7 +130,7 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
 class PCALatentSpace(LatentSpace):
     latent_model_type: ModelType = ModelType.PCA
     model: PCA
-    _projection_dimension: str = "PC%d"
+    projection_dimension: str = "PC"
     _loadings: NDArray[np.float_]
     _pc_var_correlations_: NDArray[np.float_]
 
@@ -167,7 +169,8 @@ class PCALatentSpace(LatentSpace):
         return self
 
     def _project_data(
-        self, data_matrix: pd.DataFrame, params_dict: dict[str, Any] | None = None
+        self,
+        data_matrix: pd.DataFrame,
     ) -> pd.DataFrame:
         """Projects in PC space."""
         # Get the scores
@@ -195,7 +198,7 @@ class PCALatentSpace(LatentSpace):
         # Get the scores
         pca_scores = self.project_data(data)
 
-        # Loop through variables to denoise/reconstruct them
+        # Loop through variables to reconstruct
         reconstructed_variables = {}
         for variable in self.model.feature_names_in_:
             var_idx = np.where(self.model.feature_names_in_ == variable)[0][0]
@@ -205,7 +208,7 @@ class PCALatentSpace(LatentSpace):
             for idx in sorted_pc_index:
                 var_cumsum += self.pc_var_correlations[var_idx, idx] ** 2
                 pc_idx.append(idx)
-                if var_cumsum > (var_explained / 100):
+                if var_cumsum > var_explained:
                     break
             # Select the PCs that explain x percent of variance
             selected_pcs = self.model.components_[pc_idx, var_idx]
@@ -238,24 +241,19 @@ class PCALatentSpace(LatentSpace):
 class TSNELatentSpace(LatentSpace):
     latent_model_type: ModelType = ModelType.TSNE
     model: TSNE
-    _projection_dimension: str = "Dimension %d"
+    projection_dimension: str = "Dimension"
     n_components: int = 2
 
-    def _fit(self, data_matrix: NDArray[np.float_]) -> Self:
+    def _fit(self, data_matrix: pd.DataFrame) -> Self:
         """Fit the model to the data_matrix."""
         # Fit the scaler and the model
-        self.model.fit(data_matrix)
+        self.model.fit(data_matrix.values)  # openTSNE implementation requires a ndarray
 
         return self
 
-    def _project_data(
-        self, data_matrix: pd.DataFrame, params_dict: dict[str, Any] | None = None
-    ) -> pd.DataFrame:
-        """Projects in t-SNE space."""
-        # Get the scores
-        return self.model.set_params(
-            **params_dict if params_dict is not None else {}
-        ).fit_transform(data_matrix)
+    def _project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
+        """Projects data in t-SNE embeddings."""
+        return self.model.transform(data_matrix.values)
 
     @classmethod
     def initialize(
@@ -264,9 +262,59 @@ class TSNELatentSpace(LatentSpace):
         n_components: int | None = 2,
         **kwargs: Any,
     ) -> Self:
-        model = TSNE(n_components=n_components, **kwargs)
+        model = TSNE(n_components=n_components, n_jobs=-1, **kwargs)
         return super().initialize(
             n_components=n_components,
             standardize=standardize,
             model=model,
+        )
+
+
+class SignalTuner(BaseModel):
+    """Uses PCA to tune the data to retain variance > `min_var_retained`."""
+
+    pca_model: PCALatentSpace
+    min_var_retained: float
+    var_retained_: float | None = None
+    n_pcomponents_: int | None = None
+
+    def tune(self, data: pd.DataFrame, orig_space: bool = False) -> pd.DataFrame:
+        try:
+            check_is_fitted(self.pca_model.model)
+        except NotFittedError:
+            self.pca_model.fit(data)
+
+        cumulative_variance = self.pca_model.model.explained_variance_ratio_.cumsum()
+        try:
+            pc_index = np.where(cumulative_variance >= self.min_var_retained)[0][0]
+        except IndexError:
+            logger.warning(
+                f"{self.min_var_retained * 100}% variance not reached with available components,"
+                f" consider setting PCA n_components > {self.pca_model.model.n_components}"
+            )
+            # We take all components
+            pc_index = len(cumulative_variance) - 1
+
+        self.var_retained_ = cumulative_variance[pc_index]
+        self.n_pcomponents_ = pc_index + 1
+        data_projection = self.pca_model.project_data(data).iloc[:, : self.n_pcomponents_]
+
+        if orig_space:
+            return np.dot(
+                data_projection,
+                self.pca_model.model.components_[: self.n_pcomponents_, :],
+            )
+        return data_projection
+
+    @classmethod
+    def initialize(
+        cls,
+        pca_model: PCALatentSpace | None = None,
+        min_var_retained: float | None = None,
+    ) -> Self:
+        return cls(
+            pca_model=pca_model if pca_model is not None else PCALatentSpace.initialize(),
+            min_var_retained=(
+                min_var_retained if min_var_retained is not None else STANDARD_MIN_VAR_RETAINED
+            ),
         )

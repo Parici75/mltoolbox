@@ -3,101 +3,51 @@
 import logging
 from collections.abc import Callable
 from functools import wraps
-from typing import Any, TypeVar, cast
+from typing import Any, Self, TypeVar, cast
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed
 from numpy.typing import NDArray
-from pydantic import field_validator, model_validator
-from sklearn.exceptions import NotFittedError
+from pydantic import field_validator
 from sklearn.mixture import GaussianMixture
-from sklearn.utils.validation import check_is_fitted
-from typing_extensions import Self
 
 from mltoolbox.base_model import BaseModel
 from mltoolbox.exceptions import ModelFittingFailure
-from mltoolbox.latent_space import PCALatentSpace
+from mltoolbox.latent_space import PCALatentSpace, SignalTuner
 
 logger = logging.getLogger(__name__)
 
 F = TypeVar("F", bound=Callable[..., Any])
 GAF = TypeVar("GAF", bound="GaussianAnomalyQuantifier")
 
+COVARIANCE_TYPE = ["spherical", "tied", "diag", "full"]
+
 
 class GaussianAnomalyQuantifier(BaseModel):
     """Wrapper class for Gaussian modelling of data distribution."""
 
-    pca_model: PCALatentSpace | None = None
+    signal_tuner: SignalTuner | None = None
     distribution_model: GaussianMixture
-    var_explained: float | None
     n_components: int
-    var_retained_: float | None = None
-    n_pcomponents_: int | None = None
 
-    @model_validator(mode="before")
-    def validate_model_consistency(cls, data: dict[str, Any]) -> dict[str, Any]:
-        if (var_explained := data.get("var_explained")) is not None and data.get(
-            "pca_model"
-        ) is None:
-            data["pca_model"] = PCALatentSpace.initialize()
-            logger.debug(f"Setting a `PCALatentSpace` with `var-explained`={var_explained}")
-        return data
+    @property
+    def min_var_retained(self) -> float | None:
+        if self.signal_tuner is not None:
+            return self.signal_tuner.min_var_retained
+        return None
 
     class Decorators:
         @staticmethod
-        def _fit_pca(fit_model_function: F) -> F:
-            """Optionally fit a PCA."""
+        def _tune_signal(fit_model_function: F) -> F:
+            """Optionally tune a signal with PCA."""
 
             @wraps(fit_model_function)
             def wrapper(self: type[GAF], df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
-                if (pca_model := self.pca_model) is not None:
-                    # Fit the PCA first
-                    try:
-                        check_is_fitted(pca_model.model)
-                    except NotFittedError:
-                        scores = pca_model.fit_and_project_data(df)
-                    else:
-                        scores = pca_model.project_data(df)
-
-                    # Find the n_pcomponents which explain enough variance
-                    cumulative_variance = pca_model.model.explained_variance_ratio_.cumsum() * 100
-                    try:
-                        component_idx = np.where(cumulative_variance >= self.var_explained)[0][0]
-                    except IndexError:
-                        logger.warning(
-                            f"{self.var_explained} variance not reached with available components,"
-                            f" consider setting PCA n_components > {pca_model.n_components}"
-                        )
-                        # We take all components
-                        component_idx = len(cumulative_variance) - 1
-
-                    self.var_retained_ = cumulative_variance[component_idx]
-                    self.n_pcomponents_ = component_idx + 1
-
-                    return fit_model_function(
-                        self, scores.iloc[:, : self.n_pcomponents_], *args, **kwargs
-                    )
+                if (signal_tuner := self.signal_tuner) is not None:
+                    return fit_model_function(self, signal_tuner.tune(df, orig_space=False))
                 else:
                     return fit_model_function(self, df, *args, **kwargs)
-
-            return cast(F, wrapper)
-
-        @staticmethod
-        def _apply_pca(project_model_function: F) -> F:
-            """Optionally transforms in PC space."""
-
-            @wraps(project_model_function)
-            def wrapper(self: type[GAF], df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
-                if (pca_model := self.pca_model) is not None:
-                    # Transform in PCs
-                    scores = pca_model.project_data(df)
-
-                    return project_model_function(
-                        self, scores.iloc[:, : self.n_pcomponents_], *args, **kwargs
-                    )
-                else:
-                    return project_model_function(self, df, *args, **kwargs)
 
             return cast(F, wrapper)
 
@@ -105,7 +55,7 @@ class GaussianAnomalyQuantifier(BaseModel):
     def initialize(
         cls,
         pca_model: PCALatentSpace | None = None,
-        var_explained: float | None = None,
+        min_var_retained: float | None = None,
         n_components: int = 1,
         covariance_type: str = "full",
         **kwargs: Any,
@@ -115,14 +65,18 @@ class GaussianAnomalyQuantifier(BaseModel):
             covariance_type=covariance_type,
             **kwargs,
         )
+
         return cls(
-            pca_model=pca_model,
+            signal_tuner=(
+                SignalTuner.initialize(pca_model=pca_model, min_var_retained=min_var_retained)
+                if min_var_retained is not None
+                else None
+            ),
             distribution_model=distribution_model,
-            var_explained=var_explained,
             n_components=n_components,
         )
 
-    @Decorators._fit_pca
+    @Decorators._tune_signal
     def fit(self, data_matrix: pd.DataFrame) -> Self:
         """Fit the gaussian model."""
 
@@ -130,7 +84,7 @@ class GaussianAnomalyQuantifier(BaseModel):
 
         return self
 
-    @Decorators._apply_pca
+    @Decorators._tune_signal
     def score_samples(self, data_matrix: pd.DataFrame) -> pd.Series:
         """Get the probabilities of data points under the distribution modeling."""
 
@@ -138,20 +92,20 @@ class GaussianAnomalyQuantifier(BaseModel):
 
         return pd.Series(log_probability, index=data_matrix.index, name="log_probability")
 
-    @Decorators._apply_pca
+    @Decorators._tune_signal
     def compute_bic(self, data_matrix: pd.DataFrame) -> float:
         """Returns Bayesian information criterion for the model on the data
         matrix."""
 
         return self.distribution_model.bic(data_matrix)
 
-    @Decorators._apply_pca
+    @Decorators._tune_signal
     def score(self, data_matrix: pd.DataFrame) -> float:
         """Returns the average log-likelihood of the model given the data."""
 
         return self.distribution_model.score(data_matrix)
 
-    @Decorators._apply_pca
+    @Decorators._tune_signal
     def predict_component(self, data_matrix: pd.DataFrame) -> pd.Series:
         """Get the most likely gaussian the data belongs to."""
         predicted_components = self.distribution_model.predict(data_matrix)
@@ -170,9 +124,9 @@ class GMMHyperparameterTuner(BaseModel):
     """Wrapper class for hyperparameter tuning of GaussianAnomalyQuantifier model."""
 
     pca_model: PCALatentSpace | None = None
-    var_explained: float = 80
+    min_var_retained: float = 0.8
     max_n_components: int = 10
-    covariance_type: list[str] = ["spherical", "tied", "diag", "full"]
+    covariance_type: list[str] = COVARIANCE_TYPE
 
     @field_validator("covariance_type")
     def validate_covariance_type(cls, value: list[str] | str) -> list[str]:
@@ -212,7 +166,7 @@ class GMMHyperparameterTuner(BaseModel):
             try:
                 model = GaussianAnomalyQuantifier.initialize(
                     pca_model=self.pca_model,
-                    var_explained=self.var_explained,
+                    min_var_retained=self.min_var_retained,
                     n_components=n,
                     covariance_type=covariance,
                     **kwargs,

@@ -28,7 +28,7 @@ class TestPCALatentSpace:
         model = PCALatentSpace.initialize(standardize=False).fit(iris)
         projected_data = model.project_data(iris)
         assert projected_data.shape[0] == iris.shape[0]
-        assert projected_data.shape[1] == np.min(iris.shape)
+        assert projected_data.shape[1] == min(iris.shape)
 
 
 class TestTSNELatentSpace:
