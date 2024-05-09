@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable
-from functools import wraps
+from functools import partial, wraps
 from typing import Any, Self, TypeVar, cast
 
 import numpy as np
@@ -147,13 +147,12 @@ class GMMHyperparameterTuner(BaseModel):
             data_matrix:
                 A matrix of shape (n_observation, n_variables) t fit the model.
             n_components:
-                The number of mixture components
-                If None, tuning is done using a full grid of (1, max_n_components).
+                The number of mixture components. If None, tuning is done using a full grid of (1, max_n_components).
             **kwargs:
                 Any (key: value) argument accepted by :func:`GaussianAnomalyQuantifier.initialize()`
 
         Returns:
-            A tuple of optimal (n_components, covariance_type)
+            A tuple of optimal (n_components, covariance_type).
 
         """
         # Parse arguments
@@ -162,15 +161,11 @@ class GMMHyperparameterTuner(BaseModel):
         else:
             n_components_array = np.array([n_components])
 
-        def _fit_model(n: int, covariance: str) -> tuple[float, GaussianAnomalyQuantifier | None]:
+        def _fit_model(
+            model_init: Callable[..., Any], n: int, covariance: str
+        ) -> tuple[float, GaussianAnomalyQuantifier | None]:
             try:
-                model = GaussianAnomalyQuantifier.initialize(
-                    pca_model=self.pca_model,
-                    min_var_retained=self.min_var_retained,
-                    n_components=n,
-                    covariance_type=covariance,
-                    **kwargs,
-                ).fit(data_matrix)
+                model = model_init(n_components=n, covariance_type=covariance).fit(data_matrix)
                 bic = model.compute_bic(data_matrix)
                 return bic, model
             except ValueError as exc:
@@ -182,9 +177,16 @@ class GMMHyperparameterTuner(BaseModel):
             f"Finding the best parameters in the {self.covariance_type} x"
             f" {n_components_array} components grid"
         )
+
+        model_init = partial(
+            GaussianAnomalyQuantifier.initialize,
+            pca_model=self.pca_model,
+            min_var_retained=self.min_var_retained,
+            **kwargs,
+        )
         # Parallelize model fitting
         results = Parallel(n_jobs=-1)(
-            delayed(_fit_model)(n, covariance)
+            delayed(_fit_model)(model_init, n, covariance)
             for n in n_components_array
             for covariance in self.covariance_type
         )

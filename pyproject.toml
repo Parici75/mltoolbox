@@ -72,7 +72,9 @@ select = [
     "PIE", # flake8-pie
     "PL", # pylint
 ]
-ignore = ["PLR0913"]
+ignore = [
+        "E501", # line too long
+        "PLR0913"] # too many arguments
 
 [tool.isort]
 profile = "black"
