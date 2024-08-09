@@ -35,7 +35,7 @@ lint-%:
 	@echo lint-"$*"
 	@poetry run black --check "$*"
 	@poetry run isort --check "$*"
-	@poetry run ruff "$*"
+	@poetry run ruff check "$*"
 	@echo "    ✅ All good"
 
 lint: $(addprefix lint-, $(CI_DIRECTORIES))
@@ -47,9 +47,13 @@ typecheck-%:
 typecheck: $(addprefix typecheck-, $(CI_DIRECTORIES))
 
 test:
-	@poetry run pytest -s --rootdir ./  --cache-clear tests
+	@poetry run pytest -s -o log-cli=true --rootdir ./  --cache-clear tests
 
 ci: lint typecheck test
+
+coverage:
+	@poetry run coverage run -m pytest
+	@poetry run coverage report
 
 # Pre-commit hooks
 set-pre-commit:
@@ -65,7 +69,7 @@ pre-commit: set-pre-commit run-pre-commit
 
 # Documentation
 update-doc:
-	@poetry run sphinx-apidoc --module-first --no-toc -o docs/source $(PROJECT_NAME)
+	@poetry run sphinx-apidoc --module-first --no-toc --force -o docs/source $(PROJECT_NAME)
 
 build-doc:
 	@poetry run sphinx-build docs ./docs/_build/html/

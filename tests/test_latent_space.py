@@ -1,7 +1,11 @@
-import numpy as np
-from sklearn.datasets import load_iris
+import logging
 
-from mltoolbox.latent_space import PCALatentSpace, TSNELatentSpace
+import numpy as np
+import pytest
+from sklearn.datasets import load_iris
+from sklearn.exceptions import NotFittedError
+
+from mltoolbox.latent_space import PCALatentSpace, SignalTuner, TSNELatentSpace
 
 iris = load_iris(as_frame=True)["data"]
 
@@ -41,3 +45,27 @@ class TestTSNELatentSpace:
         projected_data = TSNELatentSpace.initialize(standardize=False).fit_and_project_data(iris)
         assert projected_data.shape[0] == iris.shape[0]
         assert projected_data.shape[1] == 2
+
+
+class TestDenoiser:
+    def test_tuning(self):
+        denoiser = SignalTuner.initialize(min_var_retained=0.8)
+        assert denoiser.tune(iris).shape[0] == iris.shape[0]
+        assert denoiser.n_pcomponents_ == 1
+        assert denoiser.tune(iris, orig_space=True).shape == iris.shape
+
+    def test_no_tuning(self):
+        denoiser = SignalTuner.initialize(min_var_retained=1)
+        denoiser.tune(iris)
+        assert denoiser.n_pcomponents_ == 4
+
+    def test_precomputed_pca(self, caplog):
+        denoiser = SignalTuner.initialize(
+            min_var_retained=0.95, pca_model=PCALatentSpace.initialize(n_components=1)
+        )
+        denoiser.tune(iris)
+        assert denoiser.n_pcomponents_ == 1
+        assert (
+            f"95.0% variance not reached with available components, consider setting PCA n_components > {denoiser.pca_model.model.n_components}"
+            in caplog.text
+        )

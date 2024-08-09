@@ -106,11 +106,21 @@ class GaussianAnomalyQuantifier(BaseModel):
         return self.distribution_model.score(data_matrix)
 
     @Decorators._tune_signal
+    def predict_components_proba(self, data_matrix: pd.DataFrame) -> pd.Series:
+        """Returns components densities of each sample."""
+        components_densities = self.distribution_model.predict_proba(data_matrix)
+
+        return pd.Series(
+            list(components_densities),
+            index=data_matrix.index,
+            name="mixture_component",
+        )
+
     def predict_component(self, data_matrix: pd.DataFrame) -> pd.Series:
         """Get the most likely gaussian the data belongs to."""
-        predicted_components = self.distribution_model.predict(data_matrix)
+        components_densities = self.predict_components_proba(data_matrix)
 
-        return pd.Series(predicted_components, index=data_matrix.index, name="mixture_component")
+        return components_densities.apply(np.argmax)
 
     def get_anomalies(self, data_matrix: pd.DataFrame, threshold: float) -> NDArray[Any]:
         """Returns anomalies data points with log-probability < to threshold."""
@@ -137,7 +147,7 @@ class GMMHyperparameterTuner(BaseModel):
     def find_best_param(
         self,
         data_matrix: pd.DataFrame,
-        n_components: int | None = None,
+        n_components: NDArray[Any] | None = None,
         **kwargs: Any,
     ) -> tuple[int, str]:
         """Performs selection of the best set of hyperparameters by
@@ -158,8 +168,10 @@ class GMMHyperparameterTuner(BaseModel):
         # Parse arguments
         if n_components is None:
             n_components_array = np.arange(1, min(self.max_n_components, data_matrix.shape[0]) + 1)
-        else:
+        elif np.asarray(n_components).size == 1:
             n_components_array = np.array([n_components])
+        else:
+            n_components_array = np.asarray(n_components)
 
         def _fit_model(
             model_init: Callable[..., Any], n: int, covariance: str

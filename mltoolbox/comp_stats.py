@@ -56,7 +56,7 @@ def bootstrap_corr_pval(
     return np.sum(boot_sample_corr < pcc) / n_boot
 
 
-def linalg_norm(vector: NDArray[np.float_], matrix: NDArray[Any]) -> NDArray[np.float_]:
+def linalg_norm(vector: NDArray[Any], matrix: NDArray[Any]) -> NDArray[Any]:
     """Computes pairwise euclidian distance between a vector and each row of a matrix."""
 
     return np.linalg.norm(vector - matrix, axis=1)

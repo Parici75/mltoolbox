@@ -20,6 +20,8 @@ from mltoolbox.base_model import BaseModel
 
 logger = logging.getLogger(__name__)
 
+STANDARD_MIN_VARIANCE_RETAINED = 0.8
+
 
 class ModelType(str, Enum):
     PCA = "pca"
@@ -27,8 +29,6 @@ class ModelType(str, Enum):
 
 
 F = TypeVar("F", bound=Callable[..., Any])
-
-STANDARD_MIN_VAR_RETAINED = 0.8
 
 
 class LatentSpace(BaseModel, metaclass=ABCMeta):
@@ -131,23 +131,23 @@ class PCALatentSpace(LatentSpace):
     latent_model_type: ModelType = ModelType.PCA
     model: PCA
     projection_dimension: str = "PC"
-    _loadings: NDArray[np.float_]
-    _pc_var_correlations_: NDArray[np.float_]
+    _loadings: NDArray[Any]
+    _pc_var_correlations_: NDArray[Any]
 
     @property
-    def loadings(self) -> NDArray[np.float_]:
+    def loadings(self) -> NDArray[Any]:
         return self._loadings
 
     @loadings.setter
-    def loadings(self, value: NDArray[np.float_]) -> None:
+    def loadings(self, value: NDArray[Any]) -> None:
         self._loadings = value
 
     @property
-    def pc_var_correlations(self) -> NDArray[np.float_]:
+    def pc_var_correlations(self) -> NDArray[Any]:
         return self._pc_var_correlations_
 
     @pc_var_correlations.setter
-    def pc_var_correlations(self, value: NDArray[np.float_]) -> None:
+    def pc_var_correlations(self, value: NDArray[Any]) -> None:
         self._pc_var_correlations_ = value
 
     def _fit(self, data_matrix: pd.DataFrame) -> Self:
@@ -158,13 +158,13 @@ class PCALatentSpace(LatentSpace):
         # Calculate the loadings
         self.loadings = self.model.components_.T * np.sqrt(self.model.explained_variance_)
 
-        # Calculates correlation matrix between PC and original variables
+        # Calculates correlation matrix between PCs and original variables
         if self.standardize:
-            # Correlation between variable and the PC is given by the corresponding loading
+            # Correlation between variable and the PCs is given by the corresponding loading
             self.pc_var_correlations = self.loadings
         else:
             # Divide by original variables standard deviation
-            self.pc_var_correlations = self.loadings / data_matrix.std().values.reshape(-1, 1)
+            self.pc_var_correlations = self.loadings / data_matrix.std().to_numpy().reshape(-1, 1)
 
         return self
 
@@ -188,11 +188,12 @@ class PCALatentSpace(LatentSpace):
 
     def reconstruct_variables(self, data: pd.DataFrame, var_explained: float) -> pd.DataFrame:
         """Reconstructs original variable values from principal components.
+
         We sum squared correlation of the variables until reaching the desired amount
         of explained variance.
+
         Note that initial preprocessing is not reverted
         (i.e., data stays centered on 0 and SD=1 if standardization was applied).
-
         """
 
         # Get the scores
@@ -312,9 +313,10 @@ class SignalTuner(BaseModel):
         pca_model: PCALatentSpace | None = None,
         min_var_retained: float | None = None,
     ) -> Self:
+
         return cls(
-            pca_model=pca_model if pca_model is not None else PCALatentSpace.initialize(),
+            pca_model=(pca_model if pca_model is not None else PCALatentSpace.initialize()),
             min_var_retained=(
-                min_var_retained if min_var_retained is not None else STANDARD_MIN_VAR_RETAINED
+                min_var_retained if min_var_retained is not None else STANDARD_MIN_VARIANCE_RETAINED
             ),
         )

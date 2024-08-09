@@ -25,12 +25,13 @@ tensorflow = ["tensorflow"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
 mypy = "^1.10.0"
-ruff = "^0.4.3"
+ruff = "^0.5.6"
 black = "^24.4.2"
 isort = "^5.12.0"
 pyupgrade = "^3.13.0"
 pre-commit = "^3.4.0"
 pyclean = "^2.7.5"
+coverage = "^7.4.4"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -49,13 +50,13 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 ## Tools
 [tool.black]
-target-version = ['py311']
-line_length = 100
+target-version = ['py310', 'py311', 'py312']
+line-length = 100
 preview = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py310"
 exclude = ["tests"]
 [tool.ruff.lint]
 select = [
@@ -82,7 +83,6 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 
 [tool.mypy]
 exclude = ["tests"]
-python_version = 3.11
 
 # Strict guidelines taken from https://github.com/pytorch/pytorch/blob/master/mypy-strict.ini
 cache_dir = ".mypy_cache/strict"

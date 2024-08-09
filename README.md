@@ -1,3 +1,4 @@
+[![Poetry](https://img.shields.io/endpoint?url=https://python-poetry.org/badge/v0.json)](https://python-poetry.org/)
 [![CI](https://github.com/Parici75/mltoolbox/actions/workflows/ci.yml/badge.svg)](https://github.com/Parici75/mltoolbox/actions/workflows/ci.yml)
 [![Black](https://img.shields.io/badge/Code%20style-Black-black)](https://black.readthedocs.io/en/stable/)
 [![linting - Ruff](https://img.shields.io/badge/Linting-Ruff-yellow)](https://docs.astral.sh/ruff/)

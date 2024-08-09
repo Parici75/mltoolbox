@@ -38,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 def leave_one_identifier_out_cv(
     data_df: pd.DataFrame, identifier: str, identifier_isolation: bool = False
-) -> Generator[tuple[NDArray[np.float_], NDArray[np.float_]], None, None]:
+) -> Generator[tuple[NDArray[Any], NDArray[Any]], None, None]:
     """A generic cross-validation utility for generation of flexible
     leave-one-identifier-out cross-validation folds.
 
@@ -452,7 +452,7 @@ def precision_recall_threshold(
 
     # Print the confusion matrix
     conf_mat_fig = plot_confusion_matrix(y_true, adjusted_y_pred)
-    print(classification_report(y_true, adjusted_y_pred))
+    logger.info(classification_report(y_true, adjusted_y_pred))
 
     # plot the precision/recall curve
     curve_fig, ax = plt.subplots()
@@ -613,7 +613,7 @@ class BinaryClassifierAnalyzer:
                 # Also print classification report
                 if self.verbose:
                     y_pred = self.classifier.predict(X_test)
-                    print(classification_report(y_test, y_pred))
+                    logger.info(classification_report(y_test, y_pred))
 
         return self
 
