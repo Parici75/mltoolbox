@@ -15,7 +15,7 @@ def ccf(
     ci: float | None = None,
     n_boot: int = 1000,
     block_width: int = 5,
-) -> tuple[NDArray[np.float_], NDArray[Any] | None]:
+) -> tuple[NDArray[Any], NDArray[Any] | None]:
     """Calculates the sample cross correlation function (CCF) across time lags between a "predictor"
     x_series and a "predicted" y_series.
 

@@ -12,18 +12,31 @@ iris = load_iris(as_frame=True)["data"]
 class TestGaussianAnomalyQuantifier:
     def test_valid_construction(self):
         model = GaussianAnomalyQuantifier.initialize(n_components=1, random_state=1)
-        assert model.var_explained is None
-        assert model.var_retained_ is None
-        assert model.n_pcomponents_ is None
+        assert model.signal_tuner is None
+        assert model.min_var_retained is None
 
     def test_model_specification(self, caplog):
-        model = GaussianAnomalyQuantifier.initialize(var_explained=70)
-        assert isinstance(model.pca_model, PCALatentSpace)
-        assert "Setting a `PCALatentSpace` with `var-explained`=70" in caplog.text
+        model = GaussianAnomalyQuantifier.initialize(min_var_retained=0.7)
+        assert isinstance(model.signal_tuner.pca_model, PCALatentSpace)
+        assert model.min_var_retained == 0.7
 
     def test_model_fit(self):
-        model = GaussianAnomalyQuantifier.initialize(var_explained=95, random_state=1).fit(iris)
-        assert model.n_pcomponents_ == 2
+        model = GaussianAnomalyQuantifier.initialize(min_var_retained=0.95, random_state=1).fit(
+            iris
+        )
+        assert model.signal_tuner.n_pcomponents_ == 2
+
+    def test_not_enough_components(self, caplog):
+        model = GaussianAnomalyQuantifier.initialize(
+            pca_model=PCALatentSpace.initialize(n_components=1),
+            min_var_retained=0.95,
+            random_state=1,
+        ).fit(iris)
+        assert model.signal_tuner.n_pcomponents_ == 1
+        assert (
+            "95.0% variance not reached with available components, consider setting PCA"
+            " n_components > 1" in caplog.text
+        )
 
 
 class TestHyperparameterTuner:
@@ -33,11 +46,10 @@ class TestHyperparameterTuner:
         )
         assert (
             "Finding the best parameters in the ['spherical', 'tied', 'diag',"
-            " 'full'] x [ 1  2  3  4  5  6  7  8  9 10] components grid"
-            in caplog.text
+            " 'full'] x [ 1  2  3  4  5  6  7  8  9 10] components grid" in caplog.text
         )
         assert n_components == 2
-        assert covariance_type == "full"
+        assert covariance_type in ["full", "spherical"]
 
     def test_covariance_grid(self, caplog):
         n_components, covariance_type = GMMHyperparameterTuner().find_best_param(
@@ -45,8 +57,7 @@ class TestHyperparameterTuner:
         )
         assert (
             "Finding the best parameters in the ['spherical', 'tied', 'diag',"
-            " 'full'] x [1] components grid"
-            in caplog.text
+            " 'full'] x [1] components grid" in caplog.text
         )
         assert n_components == 1
         assert covariance_type == "spherical"

@@ -7,7 +7,7 @@ license = "BSD-3-Clause"
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.11,<3.13"
 pydantic = "^2.4.2"
 numpy = "^1.26.0"
 pandas = "^2.1.1"
@@ -17,19 +17,21 @@ imbalanced-learn = "^0.11.0"
 pymodules = {git = "https://github.com/Parici75/pymodules.git"}
 tensorflow = {version = "^2.14.0", optional = true}
 typing-extensions = "^4.8.0"
+opentsne = "^1.0.0"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
-mypy = "^1.6.1"
-ruff = "^0.0.291"
-black = "^23.9.1"
+mypy = "^1.10.0"
+ruff = "^0.5.6"
+black = "^24.4.2"
 isort = "^5.12.0"
 pyupgrade = "^3.13.0"
 pre-commit = "^3.4.0"
 pyclean = "^2.7.5"
+coverage = "^7.4.4"
 
 
 [tool.poetry.group.docs.dependencies]
@@ -48,13 +50,15 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 ## Tools
 [tool.black]
-target-version = ['py311']
-line_length = 100
+target-version = ['py310', 'py311', 'py312']
+line-length = 100
 preview = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
+exclude = ["tests"]
+[tool.ruff.lint]
 select = [
     "E",  # pycodestyle errors
     "W",  # pycodestyle warnings
@@ -70,10 +74,8 @@ select = [
     "PL", # pylint
 ]
 ignore = [
-    "UP015", # Unnecessary open mode parameters
-    "PLC1901", # compare-to-empty-string
-    "PLR0913", # Too many arguments to function call
-]
+        "E501", # line too long
+        "PLR0913"] # too many arguments
 
 [tool.isort]
 profile = "black"
@@ -81,7 +83,6 @@ sections = "FUTURE,STDLIB,THIRDPARTY,FIRSTPARTY,LOCALFOLDER"
 
 [tool.mypy]
 exclude = ["tests"]
-python_version = 3.11
 
 # Strict guidelines taken from https://github.com/pytorch/pytorch/blob/master/mypy-strict.ini
 cache_dir = ".mypy_cache/strict"
@@ -109,7 +110,7 @@ strict_equality = true
 
 # mypy per-module options
 [[tool.mypy.overrides]]
-module = ["numpy.*", "scipy.*", "sklearn.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*"]
+module = ["numpy.*", "scipy.*", "sklearn.*", "openTSNE.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*"]
 ignore_missing_imports = true
 
 # Tests

@@ -1,4 +1,4 @@
-""""Computational statistics utilities."""
+"""Computational statistics utilities."""
 
 import logging
 from typing import Any
@@ -56,7 +56,7 @@ def bootstrap_corr_pval(
     return np.sum(boot_sample_corr < pcc) / n_boot
 
 
-def linalg_norm(vector: NDArray[np.float_], matrix: NDArray[Any]) -> NDArray[np.float_]:
+def linalg_norm(vector: NDArray[Any], matrix: NDArray[Any]) -> NDArray[Any]:
     """Computes pairwise euclidian distance between a vector and each row of a matrix."""
 
     return np.linalg.norm(vector - matrix, axis=1)
@@ -91,7 +91,7 @@ def fancy_dendrogram(*args: Any, **kwargs: Any) -> matplotlib.figure.Figure:
             if y > annotate_above:
                 plt.plot(x, y, "o", c=c)
                 plt.annotate(
-                    "%.3g" % y,
+                    f"{y:.3g}",
                     (x, y),
                     xytext=(0, -5),
                     textcoords="offset points",
