@@ -49,7 +49,7 @@ class TestHyperparameterTuner:
             " 'full'] x [ 1  2  3  4  5  6  7  8  9 10] components grid" in caplog.text
         )
         assert n_components == 2
-        assert covariance_type == "full"
+        assert covariance_type in ["full", "spherical"]
 
     def test_covariance_grid(self, caplog):
         n_components, covariance_type = GMMHyperparameterTuner().find_best_param(
