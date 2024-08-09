@@ -405,8 +405,8 @@ def roc_plot(ground_truth: ArrayLike, y_probas: ArrayLike) -> matplotlib.figure.
         label="Chance level",
         alpha=0.8,
     )
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
     ax.set_xlabel("False Positive Rate")
     ax.set_ylabel("True Positive Rate")
     ax.set_title("Receiver operating characteristic curve")
@@ -475,8 +475,8 @@ def precision_recall_threshold(
     )
     ax.axhline(precision[close_default_clf], c="k", linestyle="--")
     # Set aspect
-    ax.set_xlim([-0.05, 1.05])
-    ax.set_ylim([-0.05, 1.05])
+    ax.set_xlim(-0.05, 1.05)
+    ax.set_ylim(-0.05, 1.05)
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_title(f"Precision and Recall curve threshold at precision={precision_threshold:.2f}")
@@ -710,8 +710,8 @@ class BinaryClassifierAnalyzer:
                 )
 
             # Finally set the axis
-            ax.set_xlim([-0.05, 1.05])
-            ax.set_ylim([-0.05, 1.05])
+            ax.set_xlim(-0.05, 1.05)
+            ax.set_ylim(-0.05, 1.05)
             ax.set_xlabel(x_label)
             ax.set_ylabel(y_label)
             ax.set_title(f"{curve.capitalize()} for {target}")
