@@ -1,60 +1,88 @@
-"""Main classes of the Latent space subpackage."""
+from __future__ import annotations
 
 import logging
 from abc import ABCMeta, abstractmethod
 from collections.abc import Callable
 from enum import Enum
 from functools import wraps
-from typing import Any, Self, TypeVar, cast
+from typing import Any, Generic, Self, TypeVar, cast
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from openTSNE.sklearn import TSNE
+from pacmap import PaCMAP
 from sklearn.decomposition import PCA
 from sklearn.exceptions import NotFittedError
 from sklearn.preprocessing import StandardScaler
 from sklearn.utils.validation import check_is_fitted
+from umap import UMAP
 
 from mltoolbox.base_model import BaseModel
 
-logger = logging.getLogger(__name__)
+from .config import N_JOBS, STANDARD_MIN_VARIANCE_RETAINED
 
-STANDARD_MIN_VARIANCE_RETAINED = 0.8
+logger = logging.getLogger(__name__)
 
 
 class ModelType(str, Enum):
     PCA = "pca"
     TSNE = "tsne"
+    UMAP = "umap"
+    PACMAP = "pacmap"
 
 
+ID = TypeVar("ID", bound=ArrayLike | pd.DataFrame)
 F = TypeVar("F", bound=Callable[..., Any])
+M = TypeVar("M", bound=PCA | TSNE | UMAP)
 
 
-class LatentSpace(BaseModel, metaclass=ABCMeta):
+class LatentSpace(BaseModel, Generic[M], metaclass=ABCMeta):
+    latent_model_type: ModelType
+    model: M
+    projection_dimension: str
     n_components: int | None = None
     standardize: bool
     standard_scaler: StandardScaler | None
 
     @property
     def orig_vars(self) -> list[str]:
-        return self.model.feature_names_in_  # type: ignore
+        return self.model.feature_names_in_
 
     class Decorators:
+
+        @staticmethod
+        def to_dataframe(function: F) -> pd.DataFrame:
+            @wraps(function)
+            def wrapper(data_matrix: ID, *args: Any, **kwargs: Any) -> Any:
+                function_output = function(data_matrix, *args, **kwargs)
+
+                if isinstance(data_matrix, pd.DataFrame):
+                    return pd.DataFrame(
+                        function_output, index=data_matrix.index, columns=data_matrix.columns
+                    )
+                return function_output
+
+            return wrapper
+
         @staticmethod
         def _projected_data_to_df(data_projection_function: F) -> F:
             @wraps(data_projection_function)
-            def wrapper(self: Self, data_matrix: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
+            def wrapper(self: LatentSpace[M], data_matrix: ID, *args: Any, **kwargs: Any) -> Any:
                 """Wraps the projected data in a DataFrame."""
                 projected_data = data_projection_function(self, data_matrix, *args, **kwargs)
 
                 return pd.DataFrame(
                     projected_data,
                     columns=[
-                        f"{self.projection_dimension} {i + 1}"  # type: ignore
+                        f"{self.projection_dimension} {i + 1}"
                         for i in range(projected_data.shape[1])
                     ],
-                    index=data_matrix.index,
+                    index=(
+                        data_matrix.index
+                        if isinstance(data_matrix, pd.DataFrame)
+                        else range(projected_data.shape[0])
+                    ),
                 )
 
             return cast(F, wrapper)
@@ -64,14 +92,11 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
             """Fit a standardizer to the data."""
 
             @wraps(fit_model_function)
-            def wrapper(self: Self, df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
-                if self.standardize:  # type: ignore
-                    df = pd.DataFrame(
-                        self.standard_scaler.fit_transform(df),  # type: ignore
-                        index=df.index,
-                        columns=df.columns,
-                    )
-                return fit_model_function(self, df, *args, **kwargs)
+            def wrapper(self: LatentSpace[M], data_matrix: ID, *args: Any, **kwargs: Any) -> Any:
+                if self.standardize:
+                    data_matrix = self.standard_scaler.fit_transform(data_matrix)  # type: ignore
+
+                return fit_model_function(self, data_matrix, *args, **kwargs)
 
             return cast(F, wrapper)
 
@@ -80,32 +105,27 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
             """Apply a standardizer to the data."""
 
             @wraps(data_projection_function)
-            def wrapper(self: Self, df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
-                if self.standardize:  # type: ignore
-                    df = pd.DataFrame(
-                        self.standard_scaler.transform(df),  # type: ignore
-                        index=df.index,
-                        columns=df.columns,
-                    )
-                return data_projection_function(self, df, *args, **kwargs)
+            def wrapper(self: LatentSpace[M], data_matrix: ID, *args: Any, **kwargs: Any) -> Any:
+                if self.standardize:
+                    data_matrix = self.standard_scaler.transform(data_matrix)  # type: ignore
+
+                return data_projection_function(self, data_matrix, *args, **kwargs)
 
             return cast(F, wrapper)
 
     @abstractmethod
-    def _fit(self, data_matrix: pd.DataFrame) -> Self:
-        pass
+    def _fit(self, data_matrix: ID) -> Self: ...
 
     @Decorators._fit_standardizer
-    def fit(self, data_matrix: pd.DataFrame) -> Self:
+    def fit(self, data_matrix: ID) -> Self:
         return self._fit(data_matrix)
 
     @abstractmethod
-    def _project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
-        pass
+    def _project_data(self, data_matrix: ID) -> pd.DataFrame: ...
 
     @Decorators._apply_standardizer
     @Decorators._projected_data_to_df
-    def project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
+    def project_data(self, data_matrix: ID) -> pd.DataFrame:
         return self._project_data(data_matrix)
 
     @Decorators._projected_data_to_df
@@ -119,6 +139,13 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
     @abstractmethod
     def initialize(cls, standardize: bool, n_components: int | None, **kwargs: Any) -> Self:
         standard_scaler = StandardScaler() if standardize else None
+        if standard_scaler is not None:
+            standard_scaler.fit_transform = LatentSpace.Decorators.to_dataframe(
+                standard_scaler.fit_transform
+            )
+            standard_scaler.transform = LatentSpace.Decorators.to_dataframe(
+                standard_scaler.transform
+            )
         return cls(
             n_components=n_components,
             standardize=standardize,
@@ -127,7 +154,7 @@ class LatentSpace(BaseModel, metaclass=ABCMeta):
         )
 
 
-class PCALatentSpace(LatentSpace):
+class PCALatentSpace(LatentSpace[PCA]):
     latent_model_type: ModelType = ModelType.PCA
     model: PCA
     projection_dimension: str = "PC"
@@ -170,7 +197,7 @@ class PCALatentSpace(LatentSpace):
 
     def _project_data(
         self,
-        data_matrix: pd.DataFrame,
+        data_matrix: ID,
     ) -> pd.DataFrame:
         """Projects in PC space."""
         # Get the scores
@@ -239,22 +266,92 @@ class PCALatentSpace(LatentSpace):
         )
 
 
-class TSNELatentSpace(LatentSpace):
+class TSNELatentSpace(LatentSpace[TSNE]):
     latent_model_type: ModelType = ModelType.TSNE
     model: TSNE
     projection_dimension: str = "Dimension"
     n_components: int = 2
 
-    def _fit(self, data_matrix: pd.DataFrame) -> Self:
+    def _fit(self, data_matrix: ID) -> Self:
         """Fit the model to the data_matrix."""
-        # Fit the scaler and the model
-        self.model.fit(data_matrix.values)  # openTSNE implementation requires a ndarray
+        if isinstance(data_matrix, pd.DataFrame):
+            data_matrix = data_matrix.to_numpy()  # Annoy requires a numpy array
+        self.model.fit(data_matrix)
 
         return self
 
-    def _project_data(self, data_matrix: pd.DataFrame) -> pd.DataFrame:
+    def _project_data(self, data_matrix: ID) -> pd.DataFrame:
         """Projects data in t-SNE embeddings."""
-        return self.model.transform(data_matrix.values)
+        if isinstance(data_matrix, pd.DataFrame):
+            data_matrix = data_matrix.to_numpy()  # Annoy requires a numpy array
+
+        return self.model.transform(data_matrix)
+
+    @classmethod
+    def initialize(
+        cls,
+        standardize: bool = False,
+        n_components: int | None = 2,
+        n_jobs: int = N_JOBS,
+        **kwargs: Any,
+    ) -> Self:
+        model = TSNE(n_components=n_components, n_jobs=n_jobs, **kwargs)
+        return super().initialize(
+            n_components=n_components,
+            standardize=standardize,
+            model=model,
+        )
+
+
+class UMAPLatentSpace(LatentSpace[UMAP]):
+    latent_model_type: ModelType = ModelType.UMAP
+    model: UMAP
+    projection_dimension: str = "Dimension"
+    n_components: int = 2
+
+    def _fit(self, data_matrix: ID) -> Self:
+        """Fit the model to the data_matrix."""
+        # Fit the scaler and the model
+        self.model.fit(data_matrix)
+
+        return self
+
+    def _project_data(self, data_matrix: ID) -> pd.DataFrame:
+        """Projects data in UMAP embeddings."""
+        return self.model.transform(data_matrix)
+
+    @classmethod
+    def initialize(
+        cls,
+        standardize: bool = False,
+        n_components: int | None = 2,
+        n_jobs: int = N_JOBS,
+        **kwargs: Any,
+    ) -> Self:
+        model = UMAP(n_components=n_components, n_jobs=n_jobs, **kwargs)
+        return super().initialize(
+            n_components=n_components,
+            standardize=standardize,
+            model=model,
+        )
+
+
+class PaCMAPLatentSpace(LatentSpace[PaCMAP]):
+    latent_model_type: ModelType = ModelType.PACMAP
+    model: PaCMAP
+    projection_dimension: str = "Dimension"
+    n_components: int = 2
+
+    def _fit(self, data_matrix: ID) -> Self:
+        """Fit the model to the data_matrix."""
+        # Fit the scaler and the model
+        self.model.fit(data_matrix)
+
+        return self
+
+    def _project_data(self, data_matrix: ID) -> pd.DataFrame:
+        """Projects data in PaCMAP embeddings."""
+        return self.model.transform(data_matrix)
 
     @classmethod
     def initialize(
@@ -263,7 +360,7 @@ class TSNELatentSpace(LatentSpace):
         n_components: int | None = 2,
         **kwargs: Any,
     ) -> Self:
-        model = TSNE(n_components=n_components, n_jobs=-1, **kwargs)
+        model = PaCMAP(n_components=n_components, apply_pca=False, save_tree=True, **kwargs)
         return super().initialize(
             n_components=n_components,
             standardize=standardize,

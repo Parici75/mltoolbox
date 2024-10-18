@@ -18,6 +18,8 @@ pymodules = {git = "https://github.com/Parici75/pymodules.git"}
 tensorflow = {version = "^2.14.0", optional = true}
 typing-extensions = "^4.8.0"
 opentsne = "^1.0.0"
+umap-learn = "^0.5.6"
+pacmap = {git = "https://github.com/Parici75/PaCMAP.git"}
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow"]
@@ -50,13 +52,13 @@ build-backend = "poetry_dynamic_versioning.backend"
 
 ## Tools
 [tool.black]
-target-version = ['py310', 'py311', 'py312']
+target-version = ['py311', 'py312']
 line-length = 100
 preview = true
 
 [tool.ruff]
 line-length = 100
-target-version = "py310"
+target-version = "py311"
 exclude = ["tests"]
 [tool.ruff.lint]
 select = [
@@ -110,11 +112,11 @@ strict_equality = true
 
 # mypy per-module options
 [[tool.mypy.overrides]]
-module = ["numpy.*", "scipy.*", "sklearn.*", "openTSNE.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*"]
+module = ["numpy.*", "scipy.*", "sklearn.*", "openTSNE.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*", "umap.*", "pacmap.*"]
 ignore_missing_imports = true
 
 # Tests
 [tool.pytest.ini_options]
 log_cli = true
-log_cli_level = 10
+log_cli_level = 20
 testpaths = ["tests"]

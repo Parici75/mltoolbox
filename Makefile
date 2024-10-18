@@ -47,7 +47,7 @@ typecheck-%:
 typecheck: $(addprefix typecheck-, $(CI_DIRECTORIES))
 
 test:
-	@poetry run pytest -s -o log-cli=true --rootdir ./  --cache-clear tests
+	@poetry run pytest -s --rootdir ./  --cache-clear tests
 
 ci: lint typecheck test
 
