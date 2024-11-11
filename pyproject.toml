@@ -38,6 +38,9 @@ coverage = "^7.4.4"
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
+autodoc-pydantic = "^2.2.0"
+furo = "^2024.8.6"
+myst-parser = "^4.0.0"
 
 [tool.poetry-dynamic-versioning]
 enable = true
@@ -112,7 +115,7 @@ strict_equality = true
 
 # mypy per-module options
 [[tool.mypy.overrides]]
-module = ["numpy.*", "scipy.*", "sklearn.*", "openTSNE.*", "joblib.*", "imblearn.*", "pandas.*", "seaborn.*", "plotly.*", "pymodules.*", "umap.*", "pacmap.*"]
+module = ["numpy.*", "scipy.*", "sklearn.*", "openTSNE.*", "joblib.*", "imblearn.*", "pandas.*", "pymodules.*", "umap.*", "pacmap.*"]
 ignore_missing_imports = true
 
 # Tests

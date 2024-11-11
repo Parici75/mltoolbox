@@ -45,9 +45,9 @@ class GaussianAnomalyQuantifier(BaseModel):
             @wraps(fit_model_function)
             def wrapper(self: type[GAF], df: pd.DataFrame, *args: Any, **kwargs: Any) -> Any:
                 if (signal_tuner := self.signal_tuner) is not None:
-                    return fit_model_function(self, signal_tuner.tune(df, orig_space=False))
-                else:
-                    return fit_model_function(self, df, *args, **kwargs)
+                    df = signal_tuner.tune(df, orig_space=False)
+
+                return fit_model_function(self, df, *args, **kwargs)
 
             return cast(F, wrapper)
 
@@ -77,8 +77,35 @@ class GaussianAnomalyQuantifier(BaseModel):
         )
 
     @Decorators._tune_signal
-    def fit(self, data_matrix: pd.DataFrame) -> Self:
-        """Fit the gaussian model."""
+    def fit(
+        self,
+        data_matrix: pd.DataFrame,
+        gaussian_means_specifier: Any | None = None,
+    ) -> Self:
+        """Fit the gaussian model.
+
+        Args:
+            data_matrix:
+                A `pandas.DataFrame` to fit the model.
+
+            gaussian_means_specifier:
+                An index level identifier to calculate gaussian initialization means from the `data_matrix`.
+
+        Returns:
+            Self
+        """
+
+        if gaussian_means_specifier is not None:
+            logger.info(
+                f"Initializing {self.n_components} gaussian kernel means on {gaussian_means_specifier} centroids"
+            )
+            gaussian_means_init = data_matrix.groupby(level=gaussian_means_specifier).mean()
+            if (n_means := len(gaussian_means_init)) != self.n_components:
+                raise ValueError(
+                    "The number of mixture initialization means must match the number of mixture components, "
+                    f"got {n_means} means for {self.n_components} components"
+                )
+            self.distribution_model.means_init = gaussian_means_init
 
         self.distribution_model.fit(data_matrix)
 
@@ -86,7 +113,7 @@ class GaussianAnomalyQuantifier(BaseModel):
 
     @Decorators._tune_signal
     def score_samples(self, data_matrix: pd.DataFrame) -> pd.Series:
-        """Get the probabilities of data points under the distribution modeling."""
+        """Get the probabilities of data points under the distribution model."""
 
         log_probability = self.distribution_model.score_samples(data_matrix)
 
@@ -124,7 +151,7 @@ class GaussianAnomalyQuantifier(BaseModel):
 
     def get_anomalies(self, data_matrix: pd.DataFrame, threshold: float) -> NDArray[Any]:
         """Returns anomalies data points with log-probability < to threshold."""
-        # Get the scores and probabilities
+
         log_probability = self.score_samples(data_matrix)
 
         return np.where(log_probability < np.log(threshold))[0]
@@ -137,6 +164,7 @@ class GMMHyperparameterTuner(BaseModel):
     min_var_retained: float = 0.8
     max_n_components: int = 10
     covariance_type: list[str] = COVARIANCE_TYPE
+    gaussian_means_specifier: Any | None = None
 
     @field_validator("covariance_type")
     def validate_covariance_type(cls, value: list[str] | str) -> list[str]:
@@ -154,18 +182,14 @@ class GMMHyperparameterTuner(BaseModel):
         minimizing the bic.
 
         Args:
-            data_matrix:
-                A matrix of shape (n_observation, n_variables) t fit the model.
-            n_components:
-                The number of mixture components. If None, tuning is done using a full grid of (1, max_n_components).
-            **kwargs:
-                Any (key: value) argument accepted by :func:`GaussianAnomalyQuantifier.initialize()`
+            data_matrix: A matrix of shape (n_observation, n_variables) to fit the model.
+            n_components: The number of mixture components. If None, tuning is done using a full grid of (1, max_n_components).
+            **kwargs: A dictionary of {key: value} arguments accepted by :func:`GaussianAnomalyQuantifier.initialize()`
 
         Returns:
             A tuple of optimal (n_components, covariance_type).
 
         """
-        # Parse arguments
         if n_components is None:
             n_components_array = np.arange(1, min(self.max_n_components, data_matrix.shape[0]) + 1)
         elif np.asarray(n_components).size == 1:
@@ -174,15 +198,19 @@ class GMMHyperparameterTuner(BaseModel):
             n_components_array = np.asarray(n_components)
 
         def _fit_model(
-            model_init: Callable[..., Any], n: int, covariance: str
+            model_init: Callable[..., Any],
+            n: int,
+            covariance: str,
         ) -> tuple[float, GaussianAnomalyQuantifier | None]:
             try:
-                model = model_init(n_components=n, covariance_type=covariance).fit(data_matrix)
+                model = model_init(n_components=n, covariance_type=covariance).fit(
+                    data_matrix, gaussian_means_specifier=self.gaussian_means_specifier
+                )
                 bic = model.compute_bic(data_matrix)
                 return bic, model
             except ValueError as exc:
                 # Fitting failed for some reason
-                logger.error(exc)
+                logger.exception(exc)
                 return np.inf, None
 
         logger.info(

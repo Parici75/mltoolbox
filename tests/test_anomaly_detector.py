@@ -1,12 +1,19 @@
+import numpy as np
+import pytest
 from sklearn.datasets import load_iris
 
 from mltoolbox.anomaly_detection import (
     GaussianAnomalyQuantifier,
     GMMHyperparameterTuner,
 )
-from mltoolbox.latent_space import PCALatentSpace
+from mltoolbox.latent_space import PCALatentSpace, SignalTuner
 
-iris = load_iris(as_frame=True)["data"]
+MEANS_INIT_SPECIFIER = "target"
+iris = (
+    load_iris(as_frame=True)["data"]
+    .join(load_iris(as_frame=True)[MEANS_INIT_SPECIFIER])
+    .set_index(MEANS_INIT_SPECIFIER)
+)
 
 
 class TestGaussianAnomalyQuantifier:
@@ -24,7 +31,7 @@ class TestGaussianAnomalyQuantifier:
         model = GaussianAnomalyQuantifier.initialize(min_var_retained=0.95, random_state=1).fit(
             iris
         )
-        assert model.signal_tuner.n_pcomponents_ == 2
+        assert model.signal_tuner.n_pcomponents == 2
 
     def test_not_enough_components(self, caplog):
         model = GaussianAnomalyQuantifier.initialize(
@@ -32,11 +39,65 @@ class TestGaussianAnomalyQuantifier:
             min_var_retained=0.95,
             random_state=1,
         ).fit(iris)
-        assert model.signal_tuner.n_pcomponents_ == 1
+        assert model.signal_tuner.n_pcomponents == 1
         assert (
             "95.0% variance not reached with available components, consider setting PCA"
             " n_components > 1" in caplog.text
         )
+
+    def test_gaussian_means_specifier(self, caplog):
+        model = GaussianAnomalyQuantifier.initialize(
+            n_components=3,
+            min_var_retained=0.95,
+            random_state=1,
+        ).fit(
+            iris,
+            gaussian_means_specifier=MEANS_INIT_SPECIFIER,
+        )
+
+        expected_init_means = (
+            SignalTuner.initialize(min_var_retained=0.95)
+            .tune(iris)
+            .groupby(level=MEANS_INIT_SPECIFIER)
+            .mean()
+        )
+        assert np.allclose(
+            model.distribution_model.means_init,
+            expected_init_means,
+        )
+        assert np.allclose(
+            model.distribution_model.means_,
+            [[-2.64241546, 0.19088505], [0.4338458, -0.21251283], [1.77550724, -0.03550646]],
+        )
+        assert (
+            f"Initializing 3 gaussian kernel means on {MEANS_INIT_SPECIFIER} centroids"
+            in caplog.text
+        )
+
+        # Number of means does not match n_kernels
+        with pytest.raises(ValueError) as excinfo:
+            GaussianAnomalyQuantifier.initialize(
+                n_components=1,
+                min_var_retained=0.95,
+                random_state=1,
+            ).fit(
+                iris,
+                gaussian_means_specifier=MEANS_INIT_SPECIFIER,
+            )
+        assert (
+            "The number of mixture initialization means must match the number of mixture components, "
+            f"got 3 means for 1 components" in str(excinfo.value)
+        )
+
+    def test_gaussian_means_specifier_not_found(self):
+        with pytest.raises(ValueError):
+            GaussianAnomalyQuantifier.initialize(
+                min_var_retained=0.95,
+                random_state=1,
+            ).fit(
+                iris,
+                gaussian_means_specifier="non_existent_identifier",
+            )
 
 
 class TestHyperparameterTuner:
@@ -61,3 +122,14 @@ class TestHyperparameterTuner:
         )
         assert n_components == 1
         assert covariance_type == "spherical"
+
+    def test_gaussian_means_specifier(self, caplog):
+        n_components, covariance_type = GMMHyperparameterTuner(
+            gaussian_means_specifier=MEANS_INIT_SPECIFIER
+        ).find_best_param(iris, n_components=3, random_state=1)
+        assert (
+            "Finding the best parameters in the ['spherical', 'tied', 'diag',"
+            " 'full'] x [3] components grid" in caplog.text
+        )
+        assert n_components == 3
+        assert covariance_type == "full"

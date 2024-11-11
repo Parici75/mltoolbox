@@ -199,8 +199,8 @@ class PCALatentSpace(LatentSpace[PCA]):
         self,
         data_matrix: ID,
     ) -> pd.DataFrame:
-        """Projects in PC space."""
-        # Get the scores
+        """Projects data in PC space."""
+
         return self.model.transform(data_matrix)
 
     def get_sorted_loadings(self, pc: int = 1) -> pd.Series:
@@ -311,7 +311,7 @@ class UMAPLatentSpace(LatentSpace[UMAP]):
 
     def _fit(self, data_matrix: ID) -> Self:
         """Fit the model to the data_matrix."""
-        # Fit the scaler and the model
+
         self.model.fit(data_matrix)
 
         return self
@@ -344,7 +344,7 @@ class PaCMAPLatentSpace(LatentSpace[PaCMAP]):
 
     def _fit(self, data_matrix: ID) -> Self:
         """Fit the model to the data_matrix."""
-        # Fit the scaler and the model
+
         self.model.fit(data_matrix)
 
         return self
@@ -369,12 +369,47 @@ class PaCMAPLatentSpace(LatentSpace[PaCMAP]):
 
 
 class SignalTuner(BaseModel):
-    """Uses PCA to tune the data to retain variance > `min_var_retained`."""
+    """Uses PCA to tune the data to retain variance >= `min_var_retained`."""
 
     pca_model: PCALatentSpace
     min_var_retained: float
-    var_retained_: float | None = None
-    n_pcomponents_: int | None = None
+
+    @property
+    def n_pcomponents(self) -> int | None:
+        try:
+            check_is_fitted(self.pca_model.model)
+        except NotFittedError:
+            return None
+
+        cumulative_variance = self.pca_model.model.explained_variance_ratio_.cumsum()
+        try:
+            pc_index = np.where(cumulative_variance >= self.min_var_retained)[0][0]
+
+        except IndexError:
+            try:
+                pc_index = np.where(
+                    np.isclose(cumulative_variance, self.min_var_retained, atol=1e-08)
+                )[0][0]
+            except IndexError:
+                logger.warning(
+                    f"{self.min_var_retained * 100}% variance not reached with available components,"
+                    f" consider setting PCA n_components > {self.pca_model.model.n_components}"
+                )
+                # We take all components
+                pc_index = len(cumulative_variance) - 1
+
+        return pc_index + 1
+
+    @property
+    def var_retained(self) -> float | None:
+        try:
+            check_is_fitted(self.pca_model.model)
+        except NotFittedError:
+            return None
+        if n_pcomponents := self.n_pcomponents is not None:
+            return self.pca_model.model.explained_variance_ratio_.cumsum()[n_pcomponents - 1]
+
+        return None
 
     def tune(self, data: pd.DataFrame, orig_space: bool = False) -> pd.DataFrame:
         try:
@@ -382,25 +417,12 @@ class SignalTuner(BaseModel):
         except NotFittedError:
             self.pca_model.fit(data)
 
-        cumulative_variance = self.pca_model.model.explained_variance_ratio_.cumsum()
-        try:
-            pc_index = np.where(cumulative_variance >= self.min_var_retained)[0][0]
-        except IndexError:
-            logger.warning(
-                f"{self.min_var_retained * 100}% variance not reached with available components,"
-                f" consider setting PCA n_components > {self.pca_model.model.n_components}"
-            )
-            # We take all components
-            pc_index = len(cumulative_variance) - 1
-
-        self.var_retained_ = cumulative_variance[pc_index]
-        self.n_pcomponents_ = pc_index + 1
-        data_projection = self.pca_model.project_data(data).iloc[:, : self.n_pcomponents_]
+        data_projection = self.pca_model.project_data(data).iloc[:, : self.n_pcomponents]
 
         if orig_space:
             return np.dot(
                 data_projection,
-                self.pca_model.model.components_[: self.n_pcomponents_, :],
+                self.pca_model.model.components_[: self.n_pcomponents, :],
             )
         return data_projection
 

@@ -8,28 +8,28 @@ This package is organized as follows:
 
 Subpackages:
 
-- anomaly_detection
+- :mod:`~mltoolbox.anomaly_detection`
     A framework for multivariate Gaussian anomaly detection.
 
-- latent_space
+- :mod:`~mltoolbox.latent_space`
     A framework for exploring the latent dimensions of multivariate datasets.
 
 
 Modules:
 
-- comp_stats
+- :mod:`~mltoolbox.comp_stats`
     Common methods of computational statistics.
 
-- keras
+- :mod:`~mltoolbox.keras`
     Utility functions to extend Keras/Tensorflow methods.
 
-- sklearn_extensions
+- :mod:`~mltoolbox.sklearn_extensions`
     Methods extending Scikit-learn API.
 
-- time_series
+- :mod:`~mltoolbox.time_series`
     Common methods for time-series statistics.
 
-- training
+- :mod:`~mltoolbox.training`
     Tools for machine learning model training paradigms.
 
 """

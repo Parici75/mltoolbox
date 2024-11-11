@@ -13,7 +13,7 @@
 A collection of methods for common Machine learning / computational statistics / time-series analysis.
 
 
-Installation:
+Installation
 -
 
 Clone and install with pip :
@@ -36,4 +36,4 @@ Requirements
 
 Author
 -
-[Benjamin Roland](benjamin.roland@hotmail.fr)
+[Benjamin Roland](https://benjaminroland.onrender.com/)

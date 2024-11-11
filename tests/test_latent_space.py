@@ -108,21 +108,22 @@ class TestPaCMAPLatentSpace:
 class TestDenoiser:
     def test_tuning(self):
         denoiser = SignalTuner.initialize(min_var_retained=0.8)
+        assert denoiser.n_pcomponents is None
         assert denoiser.tune(iris).shape[0] == iris.shape[0]
-        assert denoiser.n_pcomponents_ == 1
+        assert denoiser.n_pcomponents == 1
         assert denoiser.tune(iris, orig_space=True).shape == iris.shape
 
     def test_no_tuning(self):
         denoiser = SignalTuner.initialize(min_var_retained=1)
         denoiser.tune(iris)
-        assert denoiser.n_pcomponents_ == 4
+        assert denoiser.n_pcomponents == 4
 
     def test_precomputed_pca(self, caplog):
         denoiser = SignalTuner.initialize(
             min_var_retained=0.95, pca_model=PCALatentSpace.initialize(n_components=1)
         )
         denoiser.tune(iris)
-        assert denoiser.n_pcomponents_ == 1
+        assert denoiser.n_pcomponents == 1
         assert (
             f"95.0% variance not reached with available components, consider setting PCA n_components > {denoiser.pca_model.model.n_components}"
             in caplog.text

@@ -65,8 +65,7 @@ def linalg_norm(vector: NDArray[Any], matrix: NDArray[Any]) -> NDArray[Any]:
 def fancy_dendrogram(*args: Any, **kwargs: Any) -> matplotlib.figure.Figure:
     """Plots a pretty dendrogram.
 
-    From https://joernhees.de/blog/2015/08/26/scipy-hierarchical-clustering
-    -and-dendrogram-tutorial/
+    From https://joernhees.de/blog/2015/08/26/scipy-hierarchical-clustering-and-dendrogram-tutorial/
     """
 
     max_d = kwargs.pop("max_d", None)  # Plot a cut-off line
