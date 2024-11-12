@@ -178,8 +178,7 @@ class GMMHyperparameterTuner(BaseModel):
         n_components: NDArray[Any] | None = None,
         **kwargs: Any,
     ) -> tuple[int, str]:
-        """Performs selection of the best set of hyperparameters by
-        minimizing the bic.
+        """Performs selection of the best set of hyperparameters by minimizing the bic.
 
         Args:
             data_matrix: A matrix of shape (n_observation, n_variables) to fit the model.
@@ -210,7 +209,7 @@ class GMMHyperparameterTuner(BaseModel):
                 return bic, model
             except ValueError as exc:
                 # Fitting failed for some reason
-                logger.exception(exc)
+                logger.error(exc)
                 return np.inf, None
 
         logger.info(

@@ -1,6 +1,6 @@
 """Latent Space methods for the analysis for multivariate datasets."""
 
-from mltoolbox.latent_space._latent_space import (
+from mltoolbox.latent_space._core import (
     ModelType,
     PaCMAPLatentSpace,
     PCALatentSpace,
