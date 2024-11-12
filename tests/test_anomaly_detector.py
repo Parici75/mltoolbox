@@ -6,6 +6,7 @@ from mltoolbox.anomaly_detection import (
     GaussianAnomalyQuantifier,
     GMMHyperparameterTuner,
 )
+from mltoolbox.exceptions import ModelFittingFailure
 from mltoolbox.latent_space import PCALatentSpace, SignalTuner
 
 MEANS_INIT_SPECIFIER = "target"
@@ -127,9 +128,20 @@ class TestHyperparameterTuner:
         n_components, covariance_type = GMMHyperparameterTuner(
             gaussian_means_specifier=MEANS_INIT_SPECIFIER
         ).find_best_param(iris, n_components=3, random_state=1)
+        assert n_components == 3
         assert (
             "Finding the best parameters in the ['spherical', 'tied', 'diag',"
             " 'full'] x [3] components grid" in caplog.text
         )
+
+    def test_gaussian_means_specifier_inconsistent_for_some_fit(self, caplog):
+        n_components, _ = GMMHyperparameterTuner(
+            gaussian_means_specifier=MEANS_INIT_SPECIFIER, max_n_components=3
+        ).find_best_param(iris, random_state=1)
         assert n_components == 3
-        assert covariance_type == "full"
+
+    def test_inconsistent_gaussian_means_specifier_for_all_fit(self, caplog):
+        with pytest.raises(ModelFittingFailure) as excinfo:
+            GMMHyperparameterTuner(
+                gaussian_means_specifier=MEANS_INIT_SPECIFIER, max_n_components=2
+            ).find_best_param(iris, random_state=1)
