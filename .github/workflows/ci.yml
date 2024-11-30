@@ -34,7 +34,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           poetry source add --priority=explicit numba https://pypi.anaconda.org/numba/label/wheels/simple
-          poetry add --source numba lvmlite==0.43.0.dev0
+          poetry add --source numba lvmlite==0.43.0
 
       - name: Run ci
         run: |
