@@ -27,8 +27,7 @@ jobs:
       - name: Add Anaconda PyPI for llvmlite (macOS only)
         if: runner.os == 'macOS'
         run: |
-          poetry config repositories.numba https://pypi.anaconda.org/numba/label/wheels/simple
-          poetry add llvmlite --source numba
+          pip install llvmlite==0.44.0rc1 --extra-index-url https://pypi.anaconda.org/numba/label/wheels/simple
 
       - name: Run ci
         run: |
