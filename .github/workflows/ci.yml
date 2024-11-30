@@ -24,6 +24,12 @@ jobs:
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v3
 
+      - name: Add Anaconda PyPI for llvmlite (macOS only)
+        if: runner.os == 'macOS'
+        run: |
+          poetry config repositories.numba https://pypi.anaconda.org/numba/label/wheels/simple
+          poetry add llvmlite --source numba
+
       - name: Run ci
         run: |
           poetry self add "poetry-dynamic-versioning[plugin]"
