@@ -24,11 +24,17 @@ jobs:
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v3
 
-      - name: Add Anaconda PyPI for llvmlite (macOS only)
-        if: runner.os == 'Windows' || runner.os == 'macOS'
+      - name: Add Anaconda PyPI for llvmlite (macOS)
+        if: runner.os == 'macOS'
         run: |
           poetry source add --priority=explicit numba https://pypi.anaconda.org/numba/label/wheels/simple
           poetry add --source numba llvmlite
+
+      - name: Add Anaconda PyPI for llvmlite (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          poetry source add --priority=explicit numba https://pypi.anaconda.org/numba/label/wheels/simple
+          poetry add --source numba lvmlite==0.43.0.dev0
 
       - name: Run ci
         run: |
