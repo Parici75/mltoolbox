@@ -32,9 +32,7 @@ jobs:
 
       - name: Add Anaconda PyPI for llvmlite (Windows)
         if: runner.os == 'Windows'
-        run: |
-          poetry source add --priority=explicit numba https://pypi.anaconda.org/numba/label/wheels/simple
-          poetry add --source numba lvmlite==0.43.0
+        run: poetry add llvmlite
 
       - name: Run ci
         run: |
