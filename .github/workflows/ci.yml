@@ -24,6 +24,12 @@ jobs:
       - name: Set up Poetry
         uses: abatilo/actions-poetry@v3
 
+      - name: Install Visual C++ Build Tools (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install visualstudio2019buildtools --version=16.11 -y
+          choco install visualstudio2019-workload-vctools -y
+
       - name: Add Anaconda PyPI for llvmlite (macOS)
         if: runner.os == 'macOS'
         run: |
