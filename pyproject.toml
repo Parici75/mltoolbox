@@ -19,7 +19,7 @@ tensorflow = {version = "^2.14.0", optional = true}
 typing-extensions = "^4.8.0"
 opentsne = "^1.0.0"
 umap-learn = "^0.5.6"
-pacmap = {git = "https://github.com/Parici75/PaCMAP.git"}
+pacmap = "^0.7.6"
 
 [tool.poetry.extras]
 tensorflow = ["tensorflow"]
